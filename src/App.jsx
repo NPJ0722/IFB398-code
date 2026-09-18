@@ -1,184 +1,42 @@
 import { useMemo, useState } from 'react';
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  CircleUserRound,
-  Diamond,
-  Settings,
-  SlidersHorizontal,
-  UsersRound,
-  X,
-} from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Diamond, Eye, Info, Search, Settings, SlidersHorizontal, UsersRound, X } from 'lucide-react';
 import { activities, activityTypes, baseWeek, filters } from './data/schedule';
 
-const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
+const DAYS=['MON','TUE','WED','THU','FRI','SAT','SUN'];
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const NAV=[['schedule','Schedule',CalendarDays],['clients','Clients',UsersRound],['series','Event Series',SlidersHorizontal],['appointments','Appointments',Diamond],['settings','Settings',Settings]];
+const addDays=(date,n)=>{const d=new Date(date);d.setDate(d.getDate()+n);return d};
+const formatRange=start=>{const end=addDays(start,6);return start.getMonth()===end.getMonth()?`${MONTHS[start.getMonth()]} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`:`${MONTHS[start.getMonth()]} ${start.getDate()} – ${MONTHS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`};
 
-function addDays(date, days) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
+function Sidebar({page,go}){return <aside className="sidebar"><div className="brand"><strong>Strong &amp; Steady</strong><span>PRACTITIONER</span></div><nav>{NAV.map(([id,label,Icon])=><button key={id} className={`nav-item ${page===id?'active':''}`} onClick={()=>go(id)}><Icon size={16}/><span>{label}</span></button>)}</nav><div className="profile-card"><div className="avatar">JN</div><div><strong>Jessie Ni</strong><span>Practitioner</span></div></div></aside>}
+function Header({title,subtitle,action,onAction}){return <header className="page-header"><div><h1>{title}</h1><p>{subtitle}</p></div>{action&&<button className="primary-button" onClick={onAction}>＋ {action}</button>}</header>}
+function Field({label,children}){return <label className="form-field"><span>{label}</span>{children}</label>}
+function InfoBox({title,children}){return <div className="info-box"><Info size={18}/><span><strong>{title}</strong><p>{children}</p></span></div>}
+function Page({title,subtitle,action,onAction,children}){return <main><Header title={title} subtitle={subtitle} action={action} onAction={onAction}/>{children}</main>}
 
-function formatRange(start) {
-  const end = addDays(start, 6);
-  if (start.getMonth() === end.getMonth()) {
-    return `${MONTHS[start.getMonth()]} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`;
-  }
-  return `${MONTHS[start.getMonth()]} ${start.getDate()} – ${MONTHS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
-}
+function ActivityCard({a,onClick}){return <button className={`activity-card ${a.type} ${a.position}`} onClick={onClick}><strong>{a.title}</strong><span>{a.time}</span><small>{a.meta}</small>{a.capacity&&<em>{a.capacity}</em>}{a.badge&&<em>{a.badge}</em>}</button>}
+function CreateMenu({close,go}){const rows=[['Single class','Add a one-time class',close],['Event series','Add a fixed series of sessions',()=>go('create-series')],['Appointment','Book a private client session',close],['Block time','Prevent client bookings',()=>go('block-time')]];return <div className="modal-backdrop" onMouseDown={close}><section className="activity-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-heading"><div><h2>Create activity</h2><p>Choose what you want to add.</p></div><button className="icon-button" onClick={close}><X size={18}/></button></div><div className="activity-options">{rows.map(([t,d,fn])=><button key={t} onClick={fn}><span><strong>{t}</strong><small>{d}</small></span><ChevronRight size={17}/></button>)}</div></section></div>}
+function Details({close}){return <div className="drawer-backdrop"><aside className="details-drawer"><div className="drawer-title"><h2>Event series details</h2><button onClick={close}><X/></button></div><span className="series-badge">EVENT SERIES</span><h3>Strong Start</h3><p>A six-week beginner program focused on strength, balance and confidence.</p><div className="progress-card"><small>SERIES PROGRESS</small><strong>Session 3 of 6</strong><div className="progress"><i style={{width:'50%'}}/></div></div><h4>Session information</h4><dl className="detail-list"><dt>Date</dt><dd>Wednesday, 16 September 2026</dd><dt>Time</dt><dd>9:00–10:00 AM</dd><dt>Location</dt><dd>Studio A</dd><dt>Capacity</dt><dd>9 of 12 participants</dd></dl><h4>Upcoming sessions</h4>{['23 Sep · Session 4','30 Sep · Session 5','7 Oct · Session 6'].map(x=><button className="session-row" key={x}>{x}<ChevronRight size={16}/></button>)}<button className="primary-button drawer-close" onClick={close}>Close</button></aside></div>}
 
-function Sidebar() {
-  const links = [
-    { label: 'Schedule', icon: CalendarDays, active: true },
-    { label: 'Clients', icon: UsersRound },
-    { label: 'Event Series', icon: SlidersHorizontal },
-    { label: 'Appointments', icon: Diamond },
-    { label: 'Settings', icon: Settings },
-  ];
+function Schedule({go,blocked,setBlocked}){const [filter,setFilter]=useState('All'),[week,setWeek]=useState(0),[menu,setMenu]=useState(false),[details,setDetails]=useState(false),[notice,setNotice]=useState(false);const start=useMemo(()=>addDays(baseWeek,week*7),[week]);const visible=activities.filter(a=>week===0&&(filter==='All'||activityTypes[a.type].filter===filter));return <Page title="Schedule" subtitle="Manage classes, appointments and your availability." action="Create activity" onAction={()=>setMenu(true)}>{blocked&&notice&&<div className="success-toast">✓ <span>Blocked time added — Clients cannot book this time.</span><button onClick={()=>setNotice(false)}>×</button></div>}<section className="schedule-toolbar"><h2>{formatRange(start)}</h2><div className="week-controls"><button className="icon-button" onClick={()=>setWeek(v=>v-1)}><ChevronLeft size={18}/></button><button className="today-button" onClick={()=>setWeek(0)}>Today</button><button className="icon-button" onClick={()=>setWeek(v=>v+1)}><ChevronRight size={18}/></button></div></section><section className="filter-and-legend"><div className="filters">{filters.map(f=><button key={f} className={filter===f?'selected':''} onClick={()=>setFilter(f)}>{f}</button>)}</div><div className="legend">{Object.entries(activityTypes).map(([k,v])=><span key={k} className={k}><i/>{v.label}</span>)}</div></section><section className="calendar">{DAYS.map((label,i)=>{const list=visible.filter(a=>a.dayOffset===i);return <article className="day-column" key={label}><header><span>{label}</span><strong className={week===0&&i===4?'today-date':''}>{addDays(start,i).getDate()}</strong></header><div className="day-content">{list.map(a=><ActivityCard key={a.id} a={a} onClick={()=>a.type==='series'&&setDetails(true)}/>)}{blocked&&i===4&&<ActivityCard a={{type:'blocked',position:'lateAfternoon',title:'Personal appointment',time:'2:00–4:00',meta:'Blocked time',badge:'No bookings'}}/>}</div></article>})}{visible.length===0&&<div className="empty-state"><CalendarDays/><strong>No activities this week</strong><span>Use Create activity to add something to this schedule.</span></div>}<p className="calendar-tip">Tip: Select any activity to open details.</p></section>{menu&&<CreateMenu close={()=>setMenu(false)} go={p=>{setMenu(false);go(p)}}/>}{details&&<Details close={()=>setDetails(false)}/>}</Page>}
 
-  return (
-    <aside className="sidebar">
-      <div className="brand">
-        <strong>Strong &amp; Steady</strong>
-        <span>PRACTITIONER</span>
-      </div>
-      <nav aria-label="Main navigation">
-        {links.map(({ label, icon: Icon, active }) => (
-          <button className={`nav-item ${active ? 'active' : ''}`} key={label} type="button">
-            <Icon size={16} strokeWidth={1.8} />
-            <span>{label}</span>
-          </button>
-        ))}
-      </nav>
-      <div className="profile-card">
-        <div className="avatar">JN</div>
-        <div>
-          <strong>Jessie Ni</strong>
-          <span>Practitioner</span>
-        </div>
-      </div>
-    </aside>
-  );
-}
+const Stat=({label,value})=><div className="stat-card"><span>{label}</span><strong>{value}</strong></div>;
+function Clients({go}){const rows=[['Jane Wilson','jane@email.com','Active','18 Sep'],['Michael Chen','michael@email.com','6-class pass','17 Sep'],['Sarah Brown','sarah@email.com','Active','16 Sep'],['Emily Davis','emily@email.com','Trial','14 Sep']];return <Page title="Clients" subtitle="View profiles, memberships and client activity." action="Add new client" onAction={()=>go('add-client')}><div className="stat-grid"><Stat label="Total clients" value="148"/><Stat label="Active this month" value="92"/><Stat label="New this week" value="6"/></div><section className="panel client-panel"><div className="panel-heading"><h2>Client list</h2><label className="search-box"><Search size={16}/><input placeholder="Search clients…"/></label></div><div className="table-row table-head"><span>Name</span><span>Email</span><span>Membership</span><span>Last activity</span></div>{rows.map(r=><button className="table-row" key={r[1]} onClick={()=>go('client-profile')}>{r.map((x,i)=><span key={i}>{x}</span>)}</button>)}</section></Page>}
+function Series({go}){const cards=[['Strong Start','3 of 6 sessions','9 participants',50,'purple'],['Balance & Mobility','1 of 4 sessions','12 participants',25,'blue'],['Healthy Back Program','Draft','Starts 5 October',0,'green']];return <Page title="Event Series" subtitle="Create and track multi-session programs." action="New event series" onAction={()=>go('create-series')}><div className="series-grid">{cards.map(([n,s,m,p,t])=><article className={`series-card ${t}`} key={n}><small>EVENT SERIES</small><h2>{n}</h2><strong>{s}</strong><div className="progress"><i style={{width:`${p}%`}}/></div><p>{m}</p><button onClick={()=>go('schedule')}>View details</button></article>)}</div><h2 className="section-title">Upcoming sessions</h2><section className="panel upcoming-list">{[['16 Sep','Strong Start · Session 3','9:00–10:00 · Studio A'],['23 Sep','Strong Start · Session 4','9:00–10:00 · Studio A'],['26 Sep','Balance & Mobility · Session 2','11:00–12:00 · Studio B']].map(r=><div className="upcoming-row" key={r[0]+r[1]}><strong>{r[0]}</strong><span><b>{r[1]}</b><small>{r[2]}</small></span></div>)}</section></Page>}
+function Appointments(){const rows=[['TODAY · 1:30 PM','Jane Wilson','Private yoga · Room 2'],['FRI 18 · 10:00 AM','Michael Chen','Initial consultation · Online'],['MON 21 · 3:00 PM','Sarah Brown','Private yoga · Studio A'],['WED 23 · 11:30 AM','Emily Davis','Follow-up · Online']];return <Page title="Appointments" subtitle="Manage private sessions and client bookings." action="New appointment"><section className="appointments-layout"><div><h2 className="section-title">Upcoming appointments</h2><div className="panel appointment-list">{rows.map(r=><div className="appointment-row" key={r[0]}><strong>{r[0]}</strong><span><b>{r[1]}</b><small>{r[2]}</small></span><ChevronRight size={18}/></div>)}</div></div><aside className="today-summary"><small>TODAY</small><strong>1</strong><span>private appointment</span><p>No booking conflicts</p></aside></section></Page>}
+function SettingsPage(){return <Page title="Settings" subtitle="Manage your practice and booking preferences."><section className="panel settings-list">{[['Practice details','Business name, locations and contact details'],['Booking settings','Availability, cancellation and booking rules'],['Notifications','Email reminders and schedule updates'],['Team access','Practitioner accounts and permissions']].map(r=><button key={r[0]}><span><strong>{r[0]}</strong><small>{r[1]}</small></span><ChevronRight/></button>)}</section></Page>}
 
-function ActivityCard({ activity }) {
-  return (
-    <button className={`activity-card ${activity.type} ${activity.position}`} type="button">
-      <strong>{activity.title}</strong>
-      <span>{activity.time}</span>
-      <small>{activity.meta}</small>
-      {activity.capacity && <em>{activity.capacity}</em>}
-      {activity.badge && <em>{activity.badge}</em>}
-    </button>
-  );
-}
+function BlockTime({go,onSubmit}){return <main className="form-page"><button className="back-link" onClick={()=>go('schedule')}>‹ Schedule</button><Header title="Block personal or work time" subtitle="Add unavailable time to prevent clients from booking you."/><section className="form-card compact-form"><Field label="Time type"><select><option>Personal appointment</option><option>Administration work</option></select></Field><Field label="Title"><input defaultValue="Personal appointment"/></Field><Field label="Date"><input type="date" defaultValue="2026-09-18"/></Field><div className="two-cols"><Field label="Start time"><input type="time" defaultValue="14:00"/></Field><Field label="End time"><input type="time" defaultValue="16:00"/></Field></div><Field label="Repeat"><select><option>Does not repeat</option><option>Weekly</option></select></Field><Field label="Reason"><textarea placeholder="e.g. Personal appointment or administration work"/></Field><label className="check-line"><input type="checkbox" defaultChecked/> Prevent client bookings during this time</label><div className="form-actions"><button className="secondary-button" onClick={()=>go('schedule')}>Cancel</button><button className="primary-button" onClick={()=>{onSubmit();go('schedule')}}>Block time</button></div></section></main>}
+function CreateSeries({go}){return <main className="form-page"><button className="back-link" onClick={()=>go('series')}>‹ Event Series</button><Header title="Create Event Series" subtitle="Create a multi-session program and manage all sessions in one place."/><section className="form-card wide-form"><h2>Basic information</h2><Field label="Series name"><input defaultValue="Strong Start"/></Field><Field label="Description"><textarea defaultValue="A six-week beginner program focused on strength and balance."/></Field><div className="two-cols"><Field label="Instructor"><select><option>Claire</option></select></Field><Field label="Location"><select><option>Studio A</option></select></Field></div><h2>Sessions</h2><div className="session-editor"><small>SESSION 1</small><strong>Wednesday, 16 September 2026</strong><span>9:00–10:00 AM · Studio A</span><span>Capacity: 12 participants</span></div><button className="add-outline">＋ Add another session</button><h2>Booking settings</h2><div className="three-cols"><Field label="Capacity"><input defaultValue="12 participants"/></Field><Field label="Program price"><input defaultValue="$120 for 6 sessions"/></Field><Field label="Booking opens"><select><option>Immediately</option></select></Field></div><label className="check-line"><input type="checkbox" defaultChecked/> Allow clients to join after the series has started</label><p className="helper">Clients joining late will see the remaining sessions and adjusted availability.</p><div className="form-actions"><button className="secondary-button" onClick={()=>go('series')}>Cancel</button><button className="primary-button" onClick={()=>go('series')}>Create event series</button></div></section></main>}
 
-function CreateActivityModal({ onClose }) {
-  return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="activity-modal" role="dialog" aria-modal="true" aria-labelledby="create-title" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="modal-heading">
-          <div>
-            <h2 id="create-title">Create activity</h2>
-            <p>Choose what you would like to add to the schedule.</p>
-          </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Close create activity menu"><X size={18} /></button>
-        </div>
-        <div className="activity-options">
-          {['Single class', 'Event series', 'Appointment', 'Blocked time'].map((item) => (
-            <button type="button" key={item} onClick={onClose}>{item}<ChevronRight size={17} /></button>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
+const STEPS=['Client details','Intake form','Eligibility review','Complete registration'];
+function Progress({step}){return <aside className="progress-panel"><h3>Registration progress</h3>{STEPS.map((n,i)=><div className={`progress-step ${i+1<=step?'done':''}`} key={n}><i>{i+1<step?'✓':i+1}</i><span><strong>{n}</strong><small>{['Basic information','Health and experience information','Practitioner checks','Add to class and client record'][i]}</small></span></div>)}</aside>}
+function Reg({title,subtitle,step,children,back,next,nextLabel}){return <main className="registration-page"><button className="back-link" onClick={back}>‹ Back to Add New Client</button><Header title={title} subtitle={subtitle}/><div className="registration-grid"><section className="form-card">{children}</section><Progress step={step}/></div><div className="registration-actions"><button className="secondary-button" onClick={back}>← Back</button><button className="primary-button" onClick={next}>{nextLabel} →</button></div></main>}
+function AddClient({go}){return <Reg title="Add New Client" subtitle="Create a client record and complete registration details." step={1} back={()=>go('clients')} next={()=>go('intake')} nextLabel="Continue to intake"><h2>Personal information</h2><div className="two-cols"><Field label="First name *"><input placeholder="e.g. Mia"/></Field><Field label="Last name *"><input placeholder="e.g. Chen"/></Field></div><Field label="Email address *"><input placeholder="e.g. mia.chen@email.com"/></Field><div className="two-cols"><Field label="Phone number"><input placeholder="e.g. 0412 345 678"/></Field><Field label="Date of birth"><input placeholder="DD / MM / YYYY"/></Field></div><Field label="Gender (optional)"><select><option>Select</option></select></Field><h2>Emergency contact</h2><div className="three-cols"><Field label="Contact name"><input placeholder="e.g. Li Chen"/></Field><Field label="Relationship"><input placeholder="e.g. Parent"/></Field><Field label="Phone number"><input placeholder="e.g. 0412 345 678"/></Field></div><Field label="Additional information (optional)"><textarea/></Field><InfoBox title="Privacy and security">Client information is stored securely and only accessible to authorised users.</InfoBox></Reg>}
+function Intake({go}){return <Reg title="Client Intake Form" subtitle="Collect information to help provide a safe and tailored yoga experience." step={2} back={()=>go('add-client')} next={()=>go('eligibility')} nextLabel="Save & Continue"><h2>Yoga experience</h2><Field label="Experience level *"><select><option>Beginner</option></select></Field><Field label="Years of practice (optional)"><input placeholder="e.g. 1–2 years"/></Field><Field label="Previous yoga experience"><textarea/></Field><Field label="Goals / reasons for practising yoga"><textarea/></Field><h2>Health &amp; safety information</h2><Field label="Do you have any current injuries or physical limitations? *"><div className="radio-line"><label><input type="radio" name="injury"/> Yes</label><label><input type="radio" name="injury" defaultChecked/> No</label></div></Field>{['If yes, please provide details','Accessibility requirements (optional)','Are you currently under medical care? (optional)','Is there anything else the practitioner should know? (optional)'].map(x=><Field label={x} key={x}><textarea/></Field>)}<InfoBox title="Your information">The information you provide will only be accessible to authorised staff and stored securely.</InfoBox></Reg>}
+function Eligibility({go}){return <Reg title="Eligibility Review" subtitle="Review the client's intake information and confirm suitability before registration." step={3} back={()=>go('intake')} next={()=>go('complete')} nextLabel="Confirm & Continue"><h2>Client summary</h2><Summary/><h2>Eligibility checks</h2><p>Confirm that all required information has been provided and reviewed.</p>{['Intake form completed','Required information reviewed','Waiver signed (if applicable)','Practitioner confirms suitability'].map(x=><label className="check-line" key={x}><input type="checkbox" defaultChecked/> {x}</label>)}<Field label="Suitability assessment *"><select><option>Suitable</option><option>Needs review</option><option>Not suitable</option></select></Field><Field label="Practitioner notes (optional)"><textarea/></Field><InfoBox title="Note">Please review all information carefully to ensure the client's safety and suitability for classes.</InfoBox></Reg>}
+function Summary(){return <dl className="summary-list"><dt>Full name</dt><dd>Mia Chen</dd><dt>Email address</dt><dd>mia.chen@email.com</dd><dt>Phone number</dt><dd>0412 345 678</dd><dt>Date of birth</dt><dd>15 March 1998</dd><dt>Experience level</dt><dd>Beginner</dd></dl>}
+function Complete({go}){return <Reg title="Complete Registration" subtitle="Review the client record and complete the registration." step={4} back={()=>go('eligibility')} next={()=>go('client-profile')} nextLabel="Complete Registration"><h2>Registration summary</h2><div className="summary-badges"><span><small>CLIENT</small><b>Mia Chen</b><em>mia.chen@email.com</em></span><span><small>INTAKE FORM</small><b>✓ Complete</b></span><span><small>ELIGIBILITY</small><b>✓ Suitable</b></span><span><small>WAIVER</small><b>✓ Signed</b></span></div><h2>Client record</h2><Summary/><dl className="summary-list"><dt>Goals / reasons</dt><dd>Flexibility, relaxation and strength</dd><dt>Injuries / limitations</dt><dd>None reported</dd><dt>Accessibility requirements</dt><dd>None reported</dd></dl><InfoBox title="Ready to register">All required client information has been completed and reviewed.</InfoBox></Reg>}
+function ClientProfile({go}){return <Page title="Mia Chen" subtitle="Client profile and registration record."><button className="back-link" onClick={()=>go('clients')}>‹ Clients</button><div className="profile-layout"><section className="form-card"><div className="profile-heading"><div className="large-avatar">MC</div><div><h2>Mia Chen</h2><p>mia.chen@email.com · 0412 345 678</p></div><span className="status-pill">Active</span></div><h2>Personal information</h2><Summary/><h2>Safety information</h2><dl className="summary-list"><dt>Injuries / limitations</dt><dd>None reported</dd><dt>Accessibility requirements</dt><dd>None reported</dd><dt>Medical care</dt><dd>No</dd></dl></section><aside className="progress-panel"><h3>Registration complete</h3><p>✓ Intake form completed</p><p>✓ Eligibility confirmed</p><p>✓ Waiver signed</p><button className="secondary-button"><Eye size={16}/> View intake form</button></aside></div></Page>}
 
-export default function App() {
-  const [activeFilter, setActiveFilter] = useState('All');
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [showCreate, setShowCreate] = useState(false);
-  const weekStart = useMemo(() => addDays(baseWeek, weekOffset * 7), [weekOffset]);
-  const visibleActivities = activities.filter((activity) => {
-    if (weekOffset !== 0) return false;
-    return activeFilter === 'All' || activityTypes[activity.type].filter === activeFilter;
-  });
-
-  return (
-    <div className="app-shell">
-      <Sidebar />
-      <main>
-        <header className="page-header">
-          <div>
-            <h1>Schedule</h1>
-            <p>Manage classes, appointments and your availability.</p>
-          </div>
-          <button className="primary-button" type="button" onClick={() => setShowCreate(true)}>＋ Create activity</button>
-        </header>
-
-        <section className="schedule-toolbar" aria-label="Schedule controls">
-          <h2>{formatRange(weekStart)}</h2>
-          <div className="week-controls">
-            <button className="icon-button" type="button" onClick={() => setWeekOffset((value) => value - 1)} aria-label="Previous week"><ChevronLeft size={18} /></button>
-            <button className="today-button" type="button" onClick={() => setWeekOffset(0)}>Today</button>
-            <button className="icon-button" type="button" onClick={() => setWeekOffset((value) => value + 1)} aria-label="Next week"><ChevronRight size={18} /></button>
-          </div>
-        </section>
-
-        <section className="filter-and-legend">
-          <div className="filters" aria-label="Filter schedule">
-            {filters.map((filter) => (
-              <button
-                type="button"
-                key={filter}
-                className={activeFilter === filter ? 'selected' : ''}
-                onClick={() => setActiveFilter(filter)}
-                aria-pressed={activeFilter === filter}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
-          <div className="legend" aria-label="Activity colour legend">
-            {Object.entries(activityTypes).map(([type, item]) => (
-              <span key={type} className={type}><i />{item.label}</span>
-            ))}
-          </div>
-        </section>
-
-        <section className="calendar" aria-label={`Schedule for ${formatRange(weekStart)}`}>
-          {DAY_LABELS.map((label, index) => {
-            const date = addDays(weekStart, index);
-            const isReferenceToday = weekOffset === 0 && index === 4;
-            const dayActivities = visibleActivities.filter((activity) => activity.dayOffset === index);
-            return (
-              <article className="day-column" key={label}>
-                <header>
-                  <span>{label}</span>
-                  <strong className={isReferenceToday ? 'today-date' : ''}>{date.getDate()}</strong>
-                </header>
-                <div className="day-content">
-                  {dayActivities.map((activity) => <ActivityCard activity={activity} key={activity.id} />)}
-                </div>
-              </article>
-            );
-          })}
-          {visibleActivities.length === 0 && (
-            <div className="empty-state">
-              <CalendarDays size={28} strokeWidth={1.5} />
-              <strong>No activities this week</strong>
-              <span>Use Create activity to add something to this schedule.</span>
-            </div>
-          )}
-          <p className="calendar-tip">Tip: Select any activity to open details.</p>
-        </section>
-      </main>
-      {showCreate && <CreateActivityModal onClose={() => setShowCreate(false)} />}
-    </div>
-  );
-}
+export default function App(){const [page,setPage]=useState('schedule'),[blocked,setBlocked]=useState(false);const go=p=>{setPage(p);window.scrollTo({top:0,behavior:'smooth'})};let view;if(page==='schedule')view=<Schedule go={go} blocked={blocked} setBlocked={setBlocked}/>;else if(page==='clients')view=<Clients go={go}/>;else if(page==='series')view=<Series go={go}/>;else if(page==='appointments')view=<Appointments/>;else if(page==='settings')view=<SettingsPage/>;else if(page==='block-time')view=<BlockTime go={go} onSubmit={()=>setBlocked(true)}/>;else if(page==='create-series')view=<CreateSeries go={go}/>;else if(page==='add-client')view=<AddClient go={go}/>;else if(page==='intake')view=<Intake go={go}/>;else if(page==='eligibility')view=<Eligibility go={go}/>;else if(page==='complete')view=<Complete go={go}/>;else view=<ClientProfile go={go}/>;return <div className="app-shell"><Sidebar page={page} go={go}/>{view}</div>}
