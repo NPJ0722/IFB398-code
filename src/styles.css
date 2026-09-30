@@ -129,3 +129,4 @@ main { min-width: 0; padding: 35px 38px 46px; }
 .activity-options button>span{display:flex;flex-direction:column;align-items:flex-start;gap:4px}.activity-options small{color:var(--muted);font-weight:400}
 @media(max-width:1000px){.series-grid,.stat-grid{grid-template-columns:1fr}.registration-grid,.profile-layout,.appointments-layout{grid-template-columns:1fr}.three-cols{grid-template-columns:1fr}.progress-panel{order:-1}.table-row{grid-template-columns:1fr 1fr}.table-row span:nth-child(n+3){display:none}}
 @media(max-width:720px){.two-cols{grid-template-columns:1fr}.form-page,.registration-page{padding-top:20px}.summary-badges{grid-template-columns:1fr}.summary-badges span{border-right:0;border-bottom:1px solid var(--border)}}
+.form-error{margin:14px 0 0;padding:11px 13px;border:1px solid #e5a49d;border-radius:9px;background:#fff2f0;color:#9b3329;font-size:12px}
