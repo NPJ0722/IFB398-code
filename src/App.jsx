@@ -871,14 +871,14 @@ function Summary() {
     </dl>
   );
 }
-function Complete({ go }) {
+function Complete({ go, onComplete }) {
   return (
     <Reg
       title="Complete Registration"
       subtitle="Review the client record and complete the registration."
       step={4}
       back={() => go("eligibility")}
-      next={() => go("client-profile")}
+      next={onComplete}
       nextLabel="Complete Registration"
     >
       <h2>Registration summary</h2>
@@ -964,6 +964,18 @@ export default function App() {
   const [page, setPage] = useState("schedule");
   const [clients, setClients] = useState(initialClients);
   const [notice, setNotice] = useState(false);
+  const [registrationData, setRegistrationData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    dateOfBirth: "",
+    gender: "",
+    emergencyName: "",
+    emergencyRelationship: "",
+    emergencyPhone: "",
+    additionalInfo: "",
+  });
   const [activities, setActivities] = useState(() =>
     sampleActivities.map((activity) => ({
       ...activity,
@@ -971,8 +983,61 @@ export default function App() {
     })),
   );
   const go = (p) => {
+    console.log("Going to page:", p);
     setPage(p);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const saveClientToDatabase = async () => {
+    try {
+      const response = await fetch("http://localhost:3001/api/clients", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(registrationData),
+      });
+
+      const text = await response.text();
+
+      console.log("STATUS:", response.status);
+      console.log("CONTENT TYPE:", response.headers.get("content-type"));
+      console.log("RAW RESPONSE:", text);
+
+      let data;
+
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Server returned non-JSON response: " + text.slice(0, 100));
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to add client");
+      }
+
+      console.log("Client saved:", data);
+
+      // Clear registration form
+      setRegistrationData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        dateOfBirth: "",
+        gender: "",
+        emergencyName: "",
+        emergencyRelationship: "",
+        emergencyPhone: "",
+        additionalInfo: "",
+      });
+
+      // Return to Clients page
+      go("clients");
+    } catch (error) {
+      console.error("Error saving client:", error);
+      alert(error.message);
+    }
   };
   const addClient = (clientData) => {
     const newClient = {
@@ -986,7 +1051,7 @@ export default function App() {
       ...currentClients,
       newClient
     ]);
-};
+  };
   const addBlockedTime = (form) => {
     setActivities((current) => [
       ...current,
@@ -1026,11 +1091,19 @@ export default function App() {
       <AddClient
         go={go}
         Header={Header}
-        addClient={addClient}
-       />
-      );
+        form={registrationData}
+        setForm={setRegistrationData}
+      />
+    );
   else if (page === "intake") view = <Intake go={go} />;
   else if (page === "eligibility") view = <Eligibility go={go} />;
+  else if (page === "complete")
+    view = (
+      <Complete
+        go={go}
+        onComplete={saveClientToDatabase}
+      />
+    );
   else if (page === "complete") view = <Complete go={go} />;
   else view = <ClientProfile go={go} />;
   return (

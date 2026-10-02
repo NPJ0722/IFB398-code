@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
-import { initialClients } from "../data/clients";
 
 function Stat({ label, value }) {
   return (
@@ -13,8 +12,31 @@ function Stat({ label, value }) {
 
 export default function Clients({ go, Page }) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [clients, setClients] = useState([]);
 
-  const filteredClients = initialClients.filter((client) => {
+  useEffect(() => {
+    fetch("http://localhost:3001/api/clients")
+      .then((response) => response.json())
+      .then((data) => {
+        console.log("Clients loaded:", data);
+
+        const formattedClients = data.map((client) => ({
+          id: client.id,
+          firstName: client.first_name,
+          lastName: client.last_name,
+          email: client.email,
+          membership: client.membership,
+          lastActivity: client.last_activity,
+        }));
+
+        setClients(formattedClients);
+      })
+      .catch((error) => {
+        console.error("Failed to load clients:", error);
+      });
+  }, []);
+
+  const filteredClients = clients.filter((client) => {
     const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
 
     const email = client.email.toLowerCase();
@@ -31,7 +53,7 @@ export default function Clients({ go, Page }) {
       onAction={() => go("add-client")}
     >
       <div className="stat-grid">
-        <Stat label="Total clients" value={initialClients.length} />
+        <Stat label="Total clients" value={clients.length} />
 
         <Stat label="Active this month" value="92" />
 
