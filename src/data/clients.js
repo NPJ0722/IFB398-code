@@ -1,0 +1,38 @@
+export const initialClients = [
+  {
+    id: 1,
+    firstName: "Jane",
+    lastName: "Wilson",
+    email: "jane@email.com",
+    phone: "0412 111 111",
+    membership: "Active",
+    lastActivity: "18 Sep",
+  },
+  {
+    id: 2,
+    firstName: "Michael",
+    lastName: "Chen",
+    email: "michael@email.com",
+    phone: "0412 222 222",
+    membership: "6-class pass",
+    lastActivity: "17 Sep",
+  },
+  {
+    id: 3,
+    firstName: "Sarah",
+    lastName: "Brown",
+    email: "sarah@email.com",
+    phone: "0412 333 333",
+    membership: "Active",
+    lastActivity: "16 Sep",
+  },
+  {
+    id: 4,
+    firstName: "Emily",
+    lastName: "Davis",
+    email: "emily@email.com",
+    phone: "0412 444 444",
+    membership: "Trial",
+    lastActivity: "14 Sep",
+  },
+];

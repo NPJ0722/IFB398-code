@@ -1,22 +1,159 @@
-import { useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Diamond, Eye, Info, Search, Settings, SlidersHorizontal, UsersRound, X } from 'lucide-react';
-import { activities as sampleActivities, activityTypes, filters } from './data/schedule';
+import { useMemo, useState } from "react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Diamond,
+  Eye,
+  Info,
+  Search,
+  Settings,
+  SlidersHorizontal,
+  UsersRound,
+  X,
+} from "lucide-react";
+import {
+  activities as sampleActivities,
+  activityTypes,
+  filters,
+} from "./data/schedule";
+import Clients from "./pages/Clients";
+import AddClient from "./pages/AddClient";
+import { initialClients } from "./data/clients";
 
-const DAYS=['MON','TUE','WED','THU','FRI','SAT','SUN'];
-const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
-const NAV=[['schedule','Schedule',CalendarDays],['clients','Clients',UsersRound],['series','Event Series',SlidersHorizontal],['appointments','Appointments',Diamond],['settings','Settings',Settings]];
-const addDays=(date,n)=>{const d=new Date(date);d.setDate(d.getDate()+n);return d};
-const startOfWeek=date=>{const d=new Date(date);d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d};
-const toDateKey=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-const formatClock=value=>{const [hours,minutes]=value.split(':').map(Number);return new Intl.DateTimeFormat('en-AU',{hour:'numeric',minute:'2-digit'}).format(new Date(2000,0,1,hours,minutes))};
-const positionFromTime=value=>{const hour=Number(value.split(':')[0]);if(hour<10)return 'morning';if(hour<12)return 'lateMorning';if(hour<13)return 'midday';if(hour<15)return 'afternoon';return 'lateAfternoon'};
-const formatRange=start=>{const end=addDays(start,6);return start.getMonth()===end.getMonth()?`${MONTHS[start.getMonth()]} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`:`${MONTHS[start.getMonth()]} ${start.getDate()} – ${MONTHS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`};
+const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const NAV = [
+  ["schedule", "Schedule", CalendarDays],
+  ["clients", "Clients", UsersRound],
+  ["series", "Event Series", SlidersHorizontal],
+  ["appointments", "Appointments", Diamond],
+  ["settings", "Settings", Settings],
+];
+const addDays = (date, n) => {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+};
+const startOfWeek = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+};
+const toDateKey = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const formatClock = (value) => {
+  const [hours, minutes] = value.split(":").map(Number);
+  return new Intl.DateTimeFormat("en-AU", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(2000, 0, 1, hours, minutes));
+};
+const positionFromTime = (value) => {
+  const hour = Number(value.split(":")[0]);
+  if (hour < 10) return "morning";
+  if (hour < 12) return "lateMorning";
+  if (hour < 13) return "midday";
+  if (hour < 15) return "afternoon";
+  return "lateAfternoon";
+};
+const formatRange = (start) => {
+  const end = addDays(start, 6);
+  return start.getMonth() === end.getMonth()
+    ? `${MONTHS[start.getMonth()]} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`
+    : `${MONTHS[start.getMonth()]} ${start.getDate()} – ${MONTHS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
+};
 
-function Sidebar({page,go}){return <aside className="sidebar"><div className="brand"><strong>Strong &amp; Steady</strong><span>PRACTITIONER</span></div><nav>{NAV.map(([id,label,Icon])=><button key={id} className={`nav-item ${page===id?'active':''}`} onClick={()=>go(id)}><Icon size={16}/><span>{label}</span></button>)}</nav><div className="profile-card"><div className="avatar">JN</div><div><strong>Jessie Ni</strong><span>Practitioner</span></div></div></aside>}
-function Header({title,subtitle,action,onAction}){return <header className="page-header"><div><h1>{title}</h1><p>{subtitle}</p></div>{action&&<button className="primary-button" onClick={onAction}>＋ {action}</button>}</header>}
-function Field({label,children}){return <label className="form-field"><span>{label}</span>{children}</label>}
-function InfoBox({title,children}){return <div className="info-box"><Info size={18}/><span><strong>{title}</strong><p>{children}</p></span></div>}
-function Page({title,subtitle,action,onAction,children}){return <main><Header title={title} subtitle={subtitle} action={action} onAction={onAction}/>{children}</main>}
+function Sidebar({ page, go }) {
+  return (
+    <aside className="sidebar">
+      <div className="brand">
+        <strong>Strong &amp; Steady</strong>
+        <span>PRACTITIONER</span>
+      </div>
+      <nav>
+        {NAV.map(([id, label, Icon]) => (
+          <button
+            key={id}
+            className={`nav-item ${page === id ? "active" : ""}`}
+            onClick={() => go(id)}
+          >
+            <Icon size={16} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="profile-card">
+        <div className="avatar">JN</div>
+        <div>
+          <strong>Jessie Ni</strong>
+          <span>Practitioner</span>
+        </div>
+      </div>
+    </aside>
+  );
+}
+function Header({ title, subtitle, action, onAction }) {
+  return (
+    <header className="page-header">
+      <div>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
+      </div>
+      {action && (
+        <button className="primary-button" onClick={onAction}>
+          ＋ {action}
+        </button>
+      )}
+    </header>
+  );
+}
+function Field({ label, children }) {
+  return (
+    <label className="form-field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+function InfoBox({ title, children }) {
+  return (
+    <div className="info-box">
+      <Info size={18} />
+      <span>
+        <strong>{title}</strong>
+        <p>{children}</p>
+      </span>
+    </div>
+  );
+}
+function Page({ title, subtitle, action, onAction, children }) {
+  return (
+    <main>
+      <Header
+        title={title}
+        subtitle={subtitle}
+        action={action}
+        onAction={onAction}
+      />
+      {children}
+    </main>
+  );
+}
 
 function ActivityCard({a,onClick,onDragStart,onDragEnd}){return <button className={`activity-card ${a.type} ${a.position}`} onClick={onClick} draggable onDragStart={event=>onDragStart(event,a)} onDragEnd={onDragEnd}><strong>{a.title}</strong><span>{a.time}</span><small>{a.meta}</small>{a.capacity&&<em>{a.capacity}</em>}{a.badge&&<em>{a.badge}</em>}</button>}
 function CreateMenu({close,go}){const rows=[['Single class','Add a one-time class',()=>go('create-class')],['Event series','Add a fixed series of sessions',()=>go('create-series')],['Appointment','Book a private client session',()=>go('create-appointment')],['Block time','Prevent client bookings',()=>go('block-time')]];return <div className="modal-backdrop" onMouseDown={close}><section className="activity-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-heading"><div><h2>Create activity</h2><p>Choose what you want to add.</p></div><button className="icon-button" onClick={close}><X size={18}/></button></div><div className="activity-options">{rows.map(([t,d,fn])=><button key={t} onClick={fn}><span><strong>{t}</strong><small>{d}</small></span><ChevronRight size={17}/></button>)}</div></section></div>}
@@ -25,25 +162,537 @@ function BlockedDetails({activity,close,onEdit,onCancel}){const date=new Date(`$
 
 function Schedule({go,activities,notice,clearNotice,onEditBlocked,onCancelBlocked,onUpdateActivity,onCancelActivity,onMoveActivity}){const [filter,setFilter]=useState('All'),[weekStart,setWeekStart]=useState(()=>startOfWeek(new Date())),[menu,setMenu]=useState(false),[selectedActivity,setSelectedActivity]=useState(null),[selectedBlocked,setSelectedBlocked]=useState(null),[draggingId,setDraggingId]=useState(null),[dropDate,setDropDate]=useState(null);const todayKey=toDateKey(new Date());const startKey=toDateKey(weekStart);const endKey=toDateKey(addDays(weekStart,6));const visible=useMemo(()=>activities.filter(a=>a.date>=startKey&&a.date<=endKey&&(filter==='All'||activityTypes[a.type].filter===filter)),[activities,endKey,filter,startKey]);const openActivity=activity=>activity.type==='blocked'?setSelectedBlocked(activity):setSelectedActivity(activity);const startDrag=(event,activity)=>{setDraggingId(activity.id);event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(activity.id))};const finishDrag=()=>{setDraggingId(null);setDropDate(null)};const dropActivity=(event,dateKey)=>{event.preventDefault();const id=event.dataTransfer.getData('text/plain');onMoveActivity(id,dateKey);finishDrag()};return <Page title="Schedule" subtitle="Manage classes, appointments and your availability." action="Create activity" onAction={()=>setMenu(true)}>{notice&&<div className="success-toast">✓ <span>{notice}</span><button onClick={clearNotice}>×</button></div>}<section className="schedule-toolbar"><h2>{formatRange(weekStart)}</h2><div className="week-controls"><button className="icon-button" aria-label="Previous week" onClick={()=>setWeekStart(value=>addDays(value,-7))}><ChevronLeft size={18}/></button><button className="today-button" onClick={()=>setWeekStart(startOfWeek(new Date()))}>Today</button><button className="icon-button" aria-label="Next week" onClick={()=>setWeekStart(value=>addDays(value,7))}><ChevronRight size={18}/></button></div></section><section className="filter-and-legend"><div className="filters">{filters.map(f=><button key={f} className={filter===f?'selected':''} onClick={()=>setFilter(f)}>{f}</button>)}</div><div className="legend">{Object.entries(activityTypes).map(([k,v])=><span key={k} className={k}><i/>{v.label}</span>)}</div></section><section className={`calendar ${draggingId!==null?'is-dragging':''}`}>{DAYS.map((label,i)=>{const date=addDays(weekStart,i);const dateKey=toDateKey(date);const list=visible.filter(a=>a.date===dateKey);return <article className={`day-column ${dropDate===dateKey?'drop-target':''}`} key={dateKey} onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move';setDropDate(dateKey)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setDropDate(null)}} onDrop={event=>dropActivity(event,dateKey)}><header><span>{label}</span><strong className={dateKey===todayKey?'today-date':''}>{date.getDate()}</strong></header><div className="day-content">{list.map(a=><ActivityCard key={a.id} a={a} onClick={()=>openActivity(a)} onDragStart={startDrag} onDragEnd={finishDrag}/>)}</div></article>})}{visible.length===0&&<div className="empty-state"><CalendarDays/><strong>No activities this week</strong><span>Use Create activity to add something to this schedule.</span></div>}<p className="calendar-tip">Tip: Select an activity for details, or drag it to another day.</p></section>{menu&&<CreateMenu close={()=>setMenu(false)} go={p=>{setMenu(false);go(p)}}/>}{selectedActivity&&<ActivityDetails activity={selectedActivity} close={()=>setSelectedActivity(null)} onSave={onUpdateActivity} onCancel={id=>{if(window.confirm('Cancel this activity?')){setSelectedActivity(null);onCancelActivity(id)}}}/>} {selectedBlocked&&<BlockedDetails activity={selectedBlocked} close={()=>setSelectedBlocked(null)} onEdit={activity=>{setSelectedBlocked(null);onEditBlocked(activity)}} onCancel={id=>{if(window.confirm('Cancel this blocked time?')){setSelectedBlocked(null);onCancelBlocked(id)}}}/>}</Page>}
 
-const Stat=({label,value})=><div className="stat-card"><span>{label}</span><strong>{value}</strong></div>;
-function Clients({go}){const rows=[['Jane Wilson','jane@email.com','Active','18 Sep'],['Michael Chen','michael@email.com','6-class pass','17 Sep'],['Sarah Brown','sarah@email.com','Active','16 Sep'],['Emily Davis','emily@email.com','Trial','14 Sep']];return <Page title="Clients" subtitle="View profiles, memberships and client activity." action="Add new client" onAction={()=>go('add-client')}><div className="stat-grid"><Stat label="Total clients" value="148"/><Stat label="Active this month" value="92"/><Stat label="New this week" value="6"/></div><section className="panel client-panel"><div className="panel-heading"><h2>Client list</h2><label className="search-box"><Search size={16}/><input placeholder="Search clients…"/></label></div><div className="table-row table-head"><span>Name</span><span>Email</span><span>Membership</span><span>Last activity</span></div>{rows.map(r=><button className="table-row" key={r[1]} onClick={()=>go('client-profile')}>{r.map((x,i)=><span key={i}>{x}</span>)}</button>)}</section></Page>}
-function Series({go}){const cards=[['Strong Start','3 of 6 sessions','9 participants',50,'purple'],['Balance & Mobility','1 of 4 sessions','12 participants',25,'blue'],['Healthy Back Program','Draft','Starts 5 October',0,'green']];return <Page title="Event Series" subtitle="Create and track multi-session programs." action="New event series" onAction={()=>go('create-series')}><div className="series-grid">{cards.map(([n,s,m,p,t])=><article className={`series-card ${t}`} key={n}><small>EVENT SERIES</small><h2>{n}</h2><strong>{s}</strong><div className="progress"><i style={{width:`${p}%`}}/></div><p>{m}</p><button onClick={()=>go('schedule')}>View details</button></article>)}</div><h2 className="section-title">Upcoming sessions</h2><section className="panel upcoming-list">{[['16 Sep','Strong Start · Session 3','9:00–10:00 · Studio A'],['23 Sep','Strong Start · Session 4','9:00–10:00 · Studio A'],['26 Sep','Balance & Mobility · Session 2','11:00–12:00 · Studio B']].map(r=><div className="upcoming-row" key={r[0]+r[1]}><strong>{r[0]}</strong><span><b>{r[1]}</b><small>{r[2]}</small></span></div>)}</section></Page>}
-function Appointments({activities,go,onUpdateActivity,onCancelActivity}){const [selectedActivity,setSelectedActivity]=useState(null);const todayKey=toDateKey(new Date());const appointments=activities.filter(activity=>activity.type==='appointment').sort((a,b)=>`${a.date}${a.startTime||a.time}`.localeCompare(`${b.date}${b.startTime||b.time}`));const todayCount=appointments.filter(activity=>activity.date===todayKey).length;const dateLabel=activity=>{const date=new Date(`${activity.date}T00:00:00`);const day=activity.date===todayKey?'TODAY':new Intl.DateTimeFormat('en-AU',{weekday:'short',day:'numeric',month:'short'}).format(date).toUpperCase();return `${day} · ${activity.time.split('–')[0].trim()}`};return <Page title="Appointments" subtitle="Manage private sessions and client bookings." action="New appointment" onAction={()=>go('create-appointment')}><section className="appointments-layout"><div><h2 className="section-title">Upcoming appointments</h2><div className="panel appointment-list">{appointments.length?appointments.map(activity=><button type="button" className="appointment-row" key={activity.id} onClick={()=>setSelectedActivity(activity)}><strong>{dateLabel(activity)}</strong><span><b>{activity.title}</b><small>{activity.meta||'Appointment'}</small></span><ChevronRight size={18}/></button>):<div className="appointment-empty">No appointments scheduled.</div>}</div></div><aside className="today-summary"><small>TODAY</small><strong>{todayCount}</strong><span>private {todayCount===1?'appointment':'appointments'}</span><p>No booking conflicts</p></aside></section>{selectedActivity&&<ActivityDetails activity={selectedActivity} close={()=>setSelectedActivity(null)} onSave={onUpdateActivity} onCancel={id=>{if(window.confirm('Cancel this appointment?')){setSelectedActivity(null);onCancelActivity(id)}}}/>}</Page>}
-function SettingsPage(){return <Page title="Settings" subtitle="Manage your practice and booking preferences."><section className="panel settings-list">{[['Practice details','Business name, locations and contact details'],['Booking settings','Availability, cancellation and booking rules'],['Notifications','Email reminders and schedule updates'],['Team access','Practitioner accounts and permissions']].map(r=><button key={r[0]}><span><strong>{r[0]}</strong><small>{r[1]}</small></span><ChevronRight/></button>)}</section></Page>}
+const Stat = ({ label, value }) => (
+  <div className="stat-card">
+    <span>{label}</span>
+    <strong>{value}</strong>
+  </div>
+);
+
+function Series({ go }) {
+  const cards = [
+    ["Strong Start", "3 of 6 sessions", "9 participants", 50, "purple"],
+    ["Balance & Mobility", "1 of 4 sessions", "12 participants", 25, "blue"],
+    ["Healthy Back Program", "Draft", "Starts 5 October", 0, "green"],
+  ];
+  return (
+    <Page
+      title="Event Series"
+      subtitle="Create and track multi-session programs."
+      action="New event series"
+      onAction={() => go("create-series")}
+    >
+      <div className="series-grid">
+        {cards.map(([n, s, m, p, t]) => (
+          <article className={`series-card ${t}`} key={n}>
+            <small>EVENT SERIES</small>
+            <h2>{n}</h2>
+            <strong>{s}</strong>
+            <div className="progress">
+              <i style={{ width: `${p}%` }} />
+            </div>
+            <p>{m}</p>
+            <button onClick={() => go("schedule")}>View details</button>
+          </article>
+        ))}
+      </div>
+      <h2 className="section-title">Upcoming sessions</h2>
+      <section className="panel upcoming-list">
+        {[
+          ["16 Sep", "Strong Start · Session 3", "9:00–10:00 · Studio A"],
+          ["23 Sep", "Strong Start · Session 4", "9:00–10:00 · Studio A"],
+          [
+            "26 Sep",
+            "Balance & Mobility · Session 2",
+            "11:00–12:00 · Studio B",
+          ],
+        ].map((r) => (
+          <div className="upcoming-row" key={r[0] + r[1]}>
+            <strong>{r[0]}</strong>
+            <span>
+              <b>{r[1]}</b>
+              <small>{r[2]}</small>
+            </span>
+          </div>
+        ))}
+      </section>
+    </Page>
+  );
+}
+function Appointments() {
+  const rows = [
+    ["TODAY · 1:30 PM", "Jane Wilson", "Private yoga · Room 2"],
+    ["FRI 18 · 10:00 AM", "Michael Chen", "Initial consultation · Online"],
+    ["MON 21 · 3:00 PM", "Sarah Brown", "Private yoga · Studio A"],
+    ["WED 23 · 11:30 AM", "Emily Davis", "Follow-up · Online"],
+  ];
+  return (
+    <Page
+      title="Appointments"
+      subtitle="Manage private sessions and client bookings."
+      action="New appointment"
+    >
+      <section className="appointments-layout">
+        <div>
+          <h2 className="section-title">Upcoming appointments</h2>
+          <div className="panel appointment-list">
+            {rows.map((r) => (
+              <div className="appointment-row" key={r[0]}>
+                <strong>{r[0]}</strong>
+                <span>
+                  <b>{r[1]}</b>
+                  <small>{r[2]}</small>
+                </span>
+                <ChevronRight size={18} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <aside className="today-summary">
+          <small>TODAY</small>
+          <strong>1</strong>
+          <span>private appointment</span>
+          <p>No booking conflicts</p>
+        </aside>
+      </section>
+    </Page>
+  );
+}
+function SettingsPage() {
+  return (
+    <Page
+      title="Settings"
+      subtitle="Manage your practice and booking preferences."
+    >
+      <section className="panel settings-list">
+        {[
+          ["Practice details", "Business name, locations and contact details"],
+          ["Booking settings", "Availability, cancellation and booking rules"],
+          ["Notifications", "Email reminders and schedule updates"],
+          ["Team access", "Practitioner accounts and permissions"],
+        ].map((r) => (
+          <button key={r[0]}>
+            <span>
+              <strong>{r[0]}</strong>
+              <small>{r[1]}</small>
+            </span>
+            <ChevronRight />
+          </button>
+        ))}
+      </section>
+    </Page>
+  );
+}
 
 function CreateScheduledActivity({go,onSubmit,type}){const isAppointment=type==='appointment';const [form,setForm]=useState({title:'',date:toDateKey(new Date()),startTime:'09:00',endTime:'10:00',location:''});const [error,setError]=useState('');const update=(field,value)=>{setForm(current=>({...current,[field]:value}));setError('')};const submit=event=>{event.preventDefault();if(!form.title.trim()){setError(`${isAppointment?'Client name':'Class title'} is required.`);return}if(!form.date){setError('Date is required.');return}if(!form.startTime||!form.endTime||form.endTime<=form.startTime){setError('End time must be later than start time.');return}onSubmit({...form,type,title:form.title.trim(),location:form.location.trim()});go('schedule')};return <main className="form-page"><button className="back-link" onClick={()=>go('schedule')}>‹ Schedule</button><Header title={isAppointment?'Create appointment':'Create single class'} subtitle={isAppointment?'Book a private session for a client.':'Add a one-time class to the weekly schedule.'}/><form className="form-card compact-form" onSubmit={submit} noValidate><Field label={`${isAppointment?'Client name':'Class title'} *`}><input value={form.title} onChange={event=>update('title',event.target.value)} placeholder={isAppointment?'Enter client name':'Enter class title'}/></Field><Field label="Date *"><input type="date" value={form.date} onChange={event=>update('date',event.target.value)}/></Field><div className="two-cols"><Field label="Start time *"><input type="time" value={form.startTime} onChange={event=>update('startTime',event.target.value)}/></Field><Field label="End time *"><input type="time" value={form.endTime} onChange={event=>update('endTime',event.target.value)}/></Field></div><Field label={isAppointment?'Room / online details':'Location'}><input value={form.location} onChange={event=>update('location',event.target.value)} placeholder={isAppointment?'e.g. Room 2 or Zoom':'e.g. Studio A'}/></Field>{error&&<p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={()=>go('schedule')}>Cancel</button><button type="submit" className="primary-button">{isAppointment?'Create appointment':'Create class'}</button></div></form></main>}
 
 function BlockTime({go,onSubmit,initial}){const [form,setForm]=useState(()=>initial?{timeType:initial.timeType||'Personal appointment',title:initial.title,date:initial.date,endDate:initial.date,startTime:initial.startTime||'14:00',endTime:initial.endTime||'16:00',repeat:initial.repeat||'Does not repeat',reason:initial.reason||'',preventBookings:initial.preventBookings!==false}:{timeType:'Personal appointment',title:'',date:toDateKey(new Date()),endDate:toDateKey(new Date()),startTime:'14:00',endTime:'16:00',repeat:'Does not repeat',reason:'',preventBookings:true});const [error,setError]=useState('');const update=(field,value)=>{setForm(current=>({...current,[field]:value,...(field==='date'&&current.endDate<value?{endDate:value}:{})}));if((field==='title'&&value.trim())||field==='date'||field==='endDate'||field==='startTime'||field==='endTime')setError('')};const submit=event=>{event.preventDefault();if(!form.title.trim()){setError('Title is required. Please enter a title.');return}if(!form.date||!form.endDate){setError('Start date and end date are required.');return}if(form.endDate<form.date){setError('End date must be the same as or later than start date.');return}if(!form.startTime||!form.endTime||form.endTime<=form.startTime){setError('End time must be later than start time.');return}onSubmit({...form,id:initial?.id,title:form.title.trim()});go('schedule')};return <main className="form-page"><button className="back-link" onClick={()=>go('schedule')}>‹ Schedule</button><Header title={initial?'Edit blocked time':'Block personal or work time'} subtitle={initial?'Update this unavailable period.':'Add unavailable time to prevent clients from booking you.'}/><form className="form-card compact-form" onSubmit={submit} noValidate><Field label="Time type"><select value={form.timeType} onChange={e=>update('timeType',e.target.value)}><option>Personal appointment</option><option>Administration work</option></select></Field><Field label="Title *"><input value={form.title} onChange={e=>update('title',e.target.value)} placeholder="Enter a title" aria-required="true"/></Field><div className="two-cols"><Field label="Start date"><input type="date" value={form.date} onChange={e=>update('date',e.target.value)} required/></Field><Field label="End date"><input type="date" value={form.endDate} min={form.date} onChange={e=>update('endDate',e.target.value)} required/></Field></div><div className="two-cols"><Field label="Start time"><input type="time" value={form.startTime} onChange={e=>update('startTime',e.target.value)} required/></Field><Field label="End time"><input type="time" value={form.endTime} onChange={e=>update('endTime',e.target.value)} required/></Field></div><Field label="Repeat"><select value={form.repeat} onChange={e=>update('repeat',e.target.value)}><option>Does not repeat</option><option>Weekly</option></select></Field><Field label="Reason"><textarea value={form.reason} onChange={e=>update('reason',e.target.value)} placeholder="e.g. Personal appointment or administration work"/></Field><label className="check-line"><input type="checkbox" checked={form.preventBookings} onChange={e=>update('preventBookings',e.target.checked)}/> Prevent client bookings during this time</label>{error&&<p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={()=>go('schedule')}>Cancel</button><button type="submit" className="primary-button">{initial?'Save changes':'Block time'}</button></div></form></main>}
 function CreateSeries({go}){return <main className="form-page"><button className="back-link" onClick={()=>go('series')}>‹ Event Series</button><Header title="Create Event Series" subtitle="Create a multi-session program and manage all sessions in one place."/><section className="form-card wide-form"><h2>Basic information</h2><Field label="Series name"><input defaultValue="Strong Start"/></Field><Field label="Description"><textarea defaultValue="A six-week beginner program focused on strength and balance."/></Field><div className="two-cols"><Field label="Instructor"><select><option>Claire</option></select></Field><Field label="Location"><select><option>Studio A</option></select></Field></div><h2>Sessions</h2><div className="session-editor"><small>SESSION 1</small><strong>Wednesday, 16 September 2026</strong><span>9:00–10:00 AM · Studio A</span><span>Capacity: 12 participants</span></div><button className="add-outline">＋ Add another session</button><h2>Booking settings</h2><div className="three-cols"><Field label="Capacity"><input defaultValue="12 participants"/></Field><Field label="Program price"><input defaultValue="$120 for 6 sessions"/></Field><Field label="Booking opens"><select><option>Immediately</option></select></Field></div><label className="check-line"><input type="checkbox" defaultChecked/> Allow clients to join after the series has started</label><p className="helper">Clients joining late will see the remaining sessions and adjusted availability.</p><div className="form-actions"><button className="secondary-button" onClick={()=>go('series')}>Cancel</button><button className="primary-button" onClick={()=>go('series')}>Create event series</button></div></section></main>}
 
-const STEPS=['Client details','Intake form','Eligibility review','Complete registration'];
-function Progress({step}){return <aside className="progress-panel"><h3>Registration progress</h3>{STEPS.map((n,i)=><div className={`progress-step ${i+1<=step?'done':''}`} key={n}><i>{i+1<step?'✓':i+1}</i><span><strong>{n}</strong><small>{['Basic information','Health and experience information','Practitioner checks','Add to class and client record'][i]}</small></span></div>)}</aside>}
-function Reg({title,subtitle,step,children,back,next,nextLabel}){return <main className="registration-page"><button className="back-link" onClick={back}>‹ Back to Add New Client</button><Header title={title} subtitle={subtitle}/><div className="registration-grid"><section className="form-card">{children}</section><Progress step={step}/></div><div className="registration-actions"><button className="secondary-button" onClick={back}>← Back</button><button className="primary-button" onClick={next}>{nextLabel} →</button></div></main>}
-function AddClient({go}){return <Reg title="Add New Client" subtitle="Create a client record and complete registration details." step={1} back={()=>go('clients')} next={()=>go('intake')} nextLabel="Continue to intake"><h2>Personal information</h2><div className="two-cols"><Field label="First name *"><input placeholder="e.g. Mia"/></Field><Field label="Last name *"><input placeholder="e.g. Chen"/></Field></div><Field label="Email address *"><input placeholder="e.g. mia.chen@email.com"/></Field><div className="two-cols"><Field label="Phone number"><input placeholder="e.g. 0412 345 678"/></Field><Field label="Date of birth"><input placeholder="DD / MM / YYYY"/></Field></div><Field label="Gender (optional)"><select><option>Select</option></select></Field><h2>Emergency contact</h2><div className="three-cols"><Field label="Contact name"><input placeholder="e.g. Li Chen"/></Field><Field label="Relationship"><input placeholder="e.g. Parent"/></Field><Field label="Phone number"><input placeholder="e.g. 0412 345 678"/></Field></div><Field label="Additional information (optional)"><textarea/></Field><InfoBox title="Privacy and security">Client information is stored securely and only accessible to authorised users.</InfoBox></Reg>}
-function Intake({go}){return <Reg title="Client Intake Form" subtitle="Collect information to help provide a safe and tailored yoga experience." step={2} back={()=>go('add-client')} next={()=>go('eligibility')} nextLabel="Save & Continue"><h2>Yoga experience</h2><Field label="Experience level *"><select><option>Beginner</option></select></Field><Field label="Years of practice (optional)"><input placeholder="e.g. 1–2 years"/></Field><Field label="Previous yoga experience"><textarea/></Field><Field label="Goals / reasons for practising yoga"><textarea/></Field><h2>Health &amp; safety information</h2><Field label="Do you have any current injuries or physical limitations? *"><div className="radio-line"><label><input type="radio" name="injury"/> Yes</label><label><input type="radio" name="injury" defaultChecked/> No</label></div></Field>{['If yes, please provide details','Accessibility requirements (optional)','Are you currently under medical care? (optional)','Is there anything else the practitioner should know? (optional)'].map(x=><Field label={x} key={x}><textarea/></Field>)}<InfoBox title="Your information">The information you provide will only be accessible to authorised staff and stored securely.</InfoBox></Reg>}
-function Eligibility({go}){return <Reg title="Eligibility Review" subtitle="Review the client's intake information and confirm suitability before registration." step={3} back={()=>go('intake')} next={()=>go('complete')} nextLabel="Confirm & Continue"><h2>Client summary</h2><Summary/><h2>Eligibility checks</h2><p>Confirm that all required information has been provided and reviewed.</p>{['Intake form completed','Required information reviewed','Waiver signed (if applicable)','Practitioner confirms suitability'].map(x=><label className="check-line" key={x}><input type="checkbox" defaultChecked/> {x}</label>)}<Field label="Suitability assessment *"><select><option>Suitable</option><option>Needs review</option><option>Not suitable</option></select></Field><Field label="Practitioner notes (optional)"><textarea/></Field><InfoBox title="Note">Please review all information carefully to ensure the client's safety and suitability for classes.</InfoBox></Reg>}
-function Summary(){return <dl className="summary-list"><dt>Full name</dt><dd>Mia Chen</dd><dt>Email address</dt><dd>mia.chen@email.com</dd><dt>Phone number</dt><dd>0412 345 678</dd><dt>Date of birth</dt><dd>15 March 1998</dd><dt>Experience level</dt><dd>Beginner</dd></dl>}
-function Complete({go}){return <Reg title="Complete Registration" subtitle="Review the client record and complete the registration." step={4} back={()=>go('eligibility')} next={()=>go('client-profile')} nextLabel="Complete Registration"><h2>Registration summary</h2><div className="summary-badges"><span><small>CLIENT</small><b>Mia Chen</b><em>mia.chen@email.com</em></span><span><small>INTAKE FORM</small><b>✓ Complete</b></span><span><small>ELIGIBILITY</small><b>✓ Suitable</b></span><span><small>WAIVER</small><b>✓ Signed</b></span></div><h2>Client record</h2><Summary/><dl className="summary-list"><dt>Goals / reasons</dt><dd>Flexibility, relaxation and strength</dd><dt>Injuries / limitations</dt><dd>None reported</dd><dt>Accessibility requirements</dt><dd>None reported</dd></dl><InfoBox title="Ready to register">All required client information has been completed and reviewed.</InfoBox></Reg>}
-function ClientProfile({go}){return <Page title="Mia Chen" subtitle="Client profile and registration record."><button className="back-link" onClick={()=>go('clients')}>‹ Clients</button><div className="profile-layout"><section className="form-card"><div className="profile-heading"><div className="large-avatar">MC</div><div><h2>Mia Chen</h2><p>mia.chen@email.com · 0412 345 678</p></div><span className="status-pill">Active</span></div><h2>Personal information</h2><Summary/><h2>Safety information</h2><dl className="summary-list"><dt>Injuries / limitations</dt><dd>None reported</dd><dt>Accessibility requirements</dt><dd>None reported</dd><dt>Medical care</dt><dd>No</dd></dl></section><aside className="progress-panel"><h3>Registration complete</h3><p>✓ Intake form completed</p><p>✓ Eligibility confirmed</p><p>✓ Waiver signed</p><button className="secondary-button" onClick={()=>window.open(`${import.meta.env.BASE_URL}forms/yoga-therapy-intake-form.pdf`,'_blank','noopener,noreferrer')}><Eye size={16}/> View intake form</button></aside></div></Page>}
+const STEPS = [
+  "Client details",
+  "Intake form",
+  "Eligibility review",
+  "Complete registration",
+];
+function Progress({ step }) {
+  return (
+    <aside className="progress-panel">
+      <h3>Registration progress</h3>
+      {STEPS.map((n, i) => (
+        <div className={`progress-step ${i + 1 <= step ? "done" : ""}`} key={n}>
+          <i>{i + 1 < step ? "✓" : i + 1}</i>
+          <span>
+            <strong>{n}</strong>
+            <small>
+              {
+                [
+                  "Basic information",
+                  "Health and experience information",
+                  "Practitioner checks",
+                  "Add to class and client record",
+                ][i]
+              }
+            </small>
+          </span>
+        </div>
+      ))}
+    </aside>
+  );
+}
+function Reg({ title, subtitle, step, children, back, next, nextLabel }) {
+  return (
+    <main className="registration-page">
+      <button className="back-link" onClick={back}>
+        ‹ Back to Add New Client
+      </button>
+      <Header title={title} subtitle={subtitle} />
+      <div className="registration-grid">
+        <section className="form-card">{children}</section>
+        <Progress step={step} />
+      </div>
+      <div className="registration-actions">
+        <button className="secondary-button" onClick={back}>
+          ← Back
+        </button>
+        <button className="primary-button" onClick={next}>
+          {nextLabel} →
+        </button>
+      </div>
+    </main>
+  );
+}
+function Intake({ go }) {
+  return (
+    <Reg
+      title="Client Intake Form"
+      subtitle="Collect information to help provide a safe and tailored yoga experience."
+      step={2}
+      back={() => go("add-client")}
+      next={() => go("eligibility")}
+      nextLabel="Save & Continue"
+    >
+      <h2>Yoga experience</h2>
+      <Field label="Experience level *">
+        <select>
+          <option>Beginner</option>
+        </select>
+      </Field>
+      <Field label="Years of practice (optional)">
+        <input placeholder="e.g. 1–2 years" />
+      </Field>
+      <Field label="Previous yoga experience">
+        <textarea />
+      </Field>
+      <Field label="Goals / reasons for practising yoga">
+        <textarea />
+      </Field>
+      <h2>Health &amp; safety information</h2>
+      <Field label="Do you have any current injuries or physical limitations? *">
+        <div className="radio-line">
+          <label>
+            <input type="radio" name="injury" /> Yes
+          </label>
+          <label>
+            <input type="radio" name="injury" defaultChecked /> No
+          </label>
+        </div>
+      </Field>
+      {[
+        "If yes, please provide details",
+        "Accessibility requirements (optional)",
+        "Are you currently under medical care? (optional)",
+        "Is there anything else the practitioner should know? (optional)",
+      ].map((x) => (
+        <Field label={x} key={x}>
+          <textarea />
+        </Field>
+      ))}
+      <InfoBox title="Your information">
+        The information you provide will only be accessible to authorised staff
+        and stored securely.
+      </InfoBox>
+    </Reg>
+  );
+}
+function Eligibility({ go }) {
+  return (
+    <Reg
+      title="Eligibility Review"
+      subtitle="Review the client's intake information and confirm suitability before registration."
+      step={3}
+      back={() => go("intake")}
+      next={() => go("complete")}
+      nextLabel="Confirm & Continue"
+    >
+      <h2>Client summary</h2>
+      <Summary />
+      <h2>Eligibility checks</h2>
+      <p>
+        Confirm that all required information has been provided and reviewed.
+      </p>
+      {[
+        "Intake form completed",
+        "Required information reviewed",
+        "Waiver signed (if applicable)",
+        "Practitioner confirms suitability",
+      ].map((x) => (
+        <label className="check-line" key={x}>
+          <input type="checkbox" defaultChecked /> {x}
+        </label>
+      ))}
+      <Field label="Suitability assessment *">
+        <select>
+          <option>Suitable</option>
+          <option>Needs review</option>
+          <option>Not suitable</option>
+        </select>
+      </Field>
+      <Field label="Practitioner notes (optional)">
+        <textarea />
+      </Field>
+      <InfoBox title="Note">
+        Please review all information carefully to ensure the client's safety
+        and suitability for classes.
+      </InfoBox>
+    </Reg>
+  );
+}
+function Summary() {
+  return (
+    <dl className="summary-list">
+      <dt>Full name</dt>
+      <dd>Mia Chen</dd>
+      <dt>Email address</dt>
+      <dd>mia.chen@email.com</dd>
+      <dt>Phone number</dt>
+      <dd>0412 345 678</dd>
+      <dt>Date of birth</dt>
+      <dd>15 March 1998</dd>
+      <dt>Experience level</dt>
+      <dd>Beginner</dd>
+    </dl>
+  );
+}
+function Complete({ go, onComplete }) {
+  return (
+    <Reg
+      title="Complete Registration"
+      subtitle="Review the client record and complete the registration."
+      step={4}
+      back={() => go("eligibility")}
+      next={onComplete}
+      nextLabel="Complete Registration"
+    >
+      <h2>Registration summary</h2>
+      <div className="summary-badges">
+        <span>
+          <small>CLIENT</small>
+          <b>Mia Chen</b>
+          <em>mia.chen@email.com</em>
+        </span>
+        <span>
+          <small>INTAKE FORM</small>
+          <b>✓ Complete</b>
+        </span>
+        <span>
+          <small>ELIGIBILITY</small>
+          <b>✓ Suitable</b>
+        </span>
+        <span>
+          <small>WAIVER</small>
+          <b>✓ Signed</b>
+        </span>
+      </div>
+      <h2>Client record</h2>
+      <Summary />
+      <dl className="summary-list">
+        <dt>Goals / reasons</dt>
+        <dd>Flexibility, relaxation and strength</dd>
+        <dt>Injuries / limitations</dt>
+        <dd>None reported</dd>
+        <dt>Accessibility requirements</dt>
+        <dd>None reported</dd>
+      </dl>
+      <InfoBox title="Ready to register">
+        All required client information has been completed and reviewed.
+      </InfoBox>
+    </Reg>
+  );
+}
+function ClientProfile({ go }) {
+  return (
+    <Page title="Mia Chen" subtitle="Client profile and registration record.">
+      <button className="back-link" onClick={() => go("clients")}>
+        ‹ Clients
+      </button>
+      <div className="profile-layout">
+        <section className="form-card">
+          <div className="profile-heading">
+            <div className="large-avatar">MC</div>
+            <div>
+              <h2>Mia Chen</h2>
+              <p>mia.chen@email.com · 0412 345 678</p>
+            </div>
+            <span className="status-pill">Active</span>
+          </div>
+          <h2>Personal information</h2>
+          <Summary />
+          <h2>Safety information</h2>
+          <dl className="summary-list">
+            <dt>Injuries / limitations</dt>
+            <dd>None reported</dd>
+            <dt>Accessibility requirements</dt>
+            <dd>None reported</dd>
+            <dt>Medical care</dt>
+            <dd>No</dd>
+          </dl>
+        </section>
+        <aside className="progress-panel">
+          <h3>Registration complete</h3>
+          <p>✓ Intake form completed</p>
+          <p>✓ Eligibility confirmed</p>
+          <p>✓ Waiver signed</p>
+          <button className="secondary-button">
+            <Eye size={16} /> View intake form
+          </button>
+        </aside>
+      </div>
+    </Page>
+  );
+}
 
-export default function App(){const currentWeek=useMemo(()=>startOfWeek(new Date()),[]);const [page,setPage]=useState('schedule');const [notice,setNotice]=useState(false);const [editingBlocked,setEditingBlocked]=useState(null);const [activities,setActivities]=useState(()=>sampleActivities.map(activity=>({...activity,date:toDateKey(addDays(currentWeek,activity.dayOffset)),...(activity.type==='blocked'?{timeType:'Administration work',startTime:'14:00',endTime:'16:00',repeat:'Does not repeat',reason:activity.meta,preventBookings:true}:{})})));const go=p=>{setPage(p);window.scrollTo({top:0,behavior:'smooth'})};const saveScheduledActivity=form=>{const activity={id:`${form.type}-${Date.now()}`,type:form.type,title:form.title,date:form.date,startTime:form.startTime,endTime:form.endTime,time:`${formatClock(form.startTime)}–${formatClock(form.endTime)}`,meta:form.type==='appointment'?`Appointment${form.location?` · ${form.location}`:''}`:form.location||'Location not set',position:positionFromTime(form.startTime)};setActivities(current=>[...current,activity]);setNotice(form.type==='appointment'?'Appointment created.':'Single class created.')};const saveBlockedTime=form=>{const createBlocked=(date,id)=>({id,type:'blocked',title:form.title,date,startTime:form.startTime,endTime:form.endTime,time:`${formatClock(form.startTime)}–${formatClock(form.endTime)}`,timeType:form.timeType,repeat:form.repeat,reason:form.reason,preventBookings:form.preventBookings,meta:form.reason.trim()||form.timeType,position:positionFromTime(form.startTime),badge:form.preventBookings?'No bookings':undefined});if(form.id){const blocked=createBlocked(form.date,form.id);setActivities(current=>current.map(activity=>activity.id===form.id?blocked:activity));setNotice('Blocked time updated.')}else{const start=new Date(`${form.date}T00:00:00`);const end=new Date(`${form.endDate}T00:00:00`);const blockedTimes=[];for(let date=start,index=0;date<=end;date=addDays(date,1),index+=1)blockedTimes.push(createBlocked(toDateKey(date),`blocked-${Date.now()}-${index}`));setActivities(current=>[...current,...blockedTimes]);setNotice(blockedTimes.length===1?'Blocked time added — Clients cannot book this time.':`${blockedTimes.length} blocked times added — Clients cannot book these times.`)}setEditingBlocked(null)};const editBlocked=activity=>{setEditingBlocked(activity);go('block-time')};const cancelBlocked=id=>{setActivities(current=>current.filter(activity=>activity.id!==id));setNotice('Blocked time cancelled.')};const updateActivity=updated=>{setActivities(current=>current.map(activity=>activity.id===updated.id?updated:activity));setNotice('Activity updated.')};const cancelActivity=id=>{setActivities(current=>current.filter(activity=>activity.id!==id));setNotice('Activity cancelled.')};const moveActivity=(id,date)=>{setActivities(current=>current.map(activity=>String(activity.id)===String(id)?{...activity,date}:activity));setNotice('Activity moved to the new date.')};let view;if(page==='schedule')view=<Schedule go={go} activities={activities} notice={notice} clearNotice={()=>setNotice(false)} onEditBlocked={editBlocked} onCancelBlocked={cancelBlocked} onUpdateActivity={updateActivity} onCancelActivity={cancelActivity} onMoveActivity={moveActivity}/>;else if(page==='clients')view=<Clients go={go}/>;else if(page==='series')view=<Series go={go}/>;else if(page==='appointments')view=<Appointments activities={activities} go={go} onUpdateActivity={updateActivity} onCancelActivity={cancelActivity}/>;else if(page==='settings')view=<SettingsPage/>;else if(page==='block-time')view=<BlockTime go={p=>{if(p==='schedule')setEditingBlocked(null);go(p)}} onSubmit={saveBlockedTime} initial={editingBlocked}/>;else if(page==='create-class')view=<CreateScheduledActivity go={go} onSubmit={saveScheduledActivity} type="class"/>;else if(page==='create-appointment')view=<CreateScheduledActivity go={go} onSubmit={saveScheduledActivity} type="appointment"/>;else if(page==='create-series')view=<CreateSeries go={go}/>;else if(page==='add-client')view=<AddClient go={go}/>;else if(page==='intake')view=<Intake go={go}/>;else if(page==='eligibility')view=<Eligibility go={go}/>;else if(page==='complete')view=<Complete go={go}/>;else view=<ClientProfile go={go}/>;return <div className="app-shell"><Sidebar page={page} go={go}/>{view}</div>}
+export default function App() {
+  const currentWeek = useMemo(() => startOfWeek(new Date()), []);
+  const [page, setPage] = useState("schedule");
+  const [clients, setClients] = useState(initialClients);
+  const [notice, setNotice] = useState(false);
+  const [registrationData, setRegistrationData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    dateOfBirth: "",
+    gender: "",
+    emergencyName: "",
+    emergencyRelationship: "",
+    emergencyPhone: "",
+    additionalInfo: "",
+  });
+  const [activities, setActivities] = useState(() =>
+    sampleActivities.map((activity) => ({
+      ...activity,
+      date: toDateKey(addDays(currentWeek, activity.dayOffset)),
+    })),
+  );
+  const go = (p) => {
+    console.log("Going to page:", p);
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const saveClientToDatabase = async () => {
+    try {
+      const response = await fetch("http://localhost:3001/api/clients", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(registrationData),
+      });
+
+      const text = await response.text();
+
+      console.log("STATUS:", response.status);
+      console.log("CONTENT TYPE:", response.headers.get("content-type"));
+      console.log("RAW RESPONSE:", text);
+
+      let data;
+
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Server returned non-JSON response: " + text.slice(0, 100));
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to add client");
+      }
+
+      console.log("Client saved:", data);
+
+      // Clear registration form
+      setRegistrationData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        dateOfBirth: "",
+        gender: "",
+        emergencyName: "",
+        emergencyRelationship: "",
+        emergencyPhone: "",
+        additionalInfo: "",
+      });
+
+      // Return to Clients page
+      go("clients");
+    } catch (error) {
+      console.error("Error saving client:", error);
+      alert(error.message);
+    }
+  };
+  const addClient = (clientData) => {
+    const newClient = {
+      id: Date.now(),
+      ...clientData,
+      membership: 'New client',
+      lastActivity: 'Just added'
+    };
+
+    setClients((currentClients) => [
+      ...currentClients,
+      newClient
+    ]);
+  };
+  const addBlockedTime = (form) => {
+    setActivities((current) => [
+      ...current,
+      {
+        id: `blocked-${Date.now()}`,
+        type: "blocked",
+        title: form.title,
+        date: form.date,
+        time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
+        meta: form.reason.trim() || form.timeType,
+        position: positionFromTime(form.startTime),
+        badge: form.preventBookings ? "No bookings" : undefined,
+      },
+    ]);
+    setNotice(true);
+  };
+  let view;
+  if (page === "schedule")
+    view = (
+      <Schedule
+        go={go}
+        activities={activities}
+        notice={notice}
+        clearNotice={() => setNotice(false)}
+      />
+    );
+  else if (page === "clients")
+    view = <Clients go={go} Page={Page} clients={clients} />;
+  else if (page === "series") view = <Series go={go} />;
+  else if (page === "appointments") view = <Appointments />;
+  else if (page === "settings") view = <SettingsPage />;
+  else if (page === "block-time")
+    view = <BlockTime go={go} onSubmit={addBlockedTime} />;
+  else if (page === "create-series") view = <CreateSeries go={go} />;
+  else if (page === "add-client")
+    view = (
+      <AddClient
+        go={go}
+        Header={Header}
+        form={registrationData}
+        setForm={setRegistrationData}
+      />
+    );
+  else if (page === "intake") view = <Intake go={go} />;
+  else if (page === "eligibility") view = <Eligibility go={go} />;
+  else if (page === "complete")
+    view = (
+      <Complete
+        go={go}
+        onComplete={saveClientToDatabase}
+      />
+    );
+  else if (page === "complete") view = <Complete go={go} />;
+  else view = <ClientProfile go={go} />;
+  return (
+    <div className="app-shell">
+      <Sidebar page={page} go={go} />
+      {view}
+    </div>
+  );
+}
