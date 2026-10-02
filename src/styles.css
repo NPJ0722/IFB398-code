@@ -67,6 +67,10 @@ main { min-width: 0; padding: 35px 38px 46px; }
 .day-content { position: relative; height: 515px; padding: 0 12px; }
 .activity-card { position: absolute; left: 12px; right: 12px; display: flex; flex-direction: column; align-items: flex-start; min-height: 80px; padding: 13px 10px 10px; border: 1px solid currentColor; border-left-width: 4px; border-radius: 7px; background: white; text-align: left; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
 .activity-card:hover { z-index: 2; transform: translateY(-2px); box-shadow: 0 7px 18px rgba(24, 66, 55, .12); }
+.activity-card[draggable="true"] { cursor: grab; }
+.activity-card[draggable="true"]:active { cursor: grabbing; opacity: .7; }
+.calendar.is-dragging .day-column { transition: background .15s ease, box-shadow .15s ease; }
+.calendar.is-dragging .day-column.drop-target { background: #edf7f3; box-shadow: inset 0 0 0 2px #4c9a83; }
 .activity-card strong { color: #283a35; font-size: 11px; }
 .activity-card span { margin-top: 6px; color: #42524d; font-size: 10px; }
 .activity-card small { margin-top: 6px; color: #7a8783; font-size: 8.5px; }
