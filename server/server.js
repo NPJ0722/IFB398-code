@@ -127,12 +127,34 @@ app.post("/api/intakes", (req, res) => {
       experienceLevel,
       yearsOfPractice,
       previousExperience,
+
+      hadYogaTherapy,
+      lastYogaTherapySession,
+      yogaTherapyFrequency,
+      yogaStyles,
+      otherYogaStyle,
+
       goals,
+      otherGoals,
+
+      yogaInterests,
+      otherYogaInterest,
+
+      activityLevel,
+      stressLevel,
+
       hasInjury,
       injuryDetails,
+
+      healthConditions,
+      otherHealthCondition,
+
+      takingMedication,
+      medicationDetails,
+
       accessibilityRequirements,
       medicalCare,
-      additionalInfo,
+      additionalInformation,
     } = req.body;
 
     // Basic validation
@@ -155,51 +177,131 @@ app.post("/api/intakes", (req, res) => {
 
     // Insert a new intake, or update it if this client already has one
     const statement = db.prepare(`
-      INSERT INTO client_intakes (
-        client_id,
-        experience_level,
-        years_of_practice,
-        previous_experience,
-        goals,
-        has_injury,
-        injury_details,
-        accessibility_requirements,
-        medical_care,
-        additional_info
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO client_intakes (
+                client_id,
+                experience_level,
+                years_of_practice,
+                previous_experience,
 
-      ON CONFLICT(client_id) DO UPDATE SET
-        experience_level = excluded.experience_level,
-        years_of_practice = excluded.years_of_practice,
-        previous_experience = excluded.previous_experience,
-        goals = excluded.goals,
-        has_injury = excluded.has_injury,
-        injury_details = excluded.injury_details,
-        accessibility_requirements = excluded.accessibility_requirements,
-        medical_care = excluded.medical_care,
-        additional_info = excluded.additional_info,
-        updated_at = CURRENT_TIMESTAMP
-    `);
+                had_yoga_therapy,
+                last_yoga_therapy_session,
+                yoga_therapy_frequency,
+                yoga_styles,
+                other_yoga_style,
+
+                goals,
+                other_goals,
+
+                yoga_interests,
+                other_yoga_interest,
+
+                activity_level,
+                stress_level,
+
+                has_injury,
+                injury_details,
+
+                health_conditions,
+                other_health_condition,
+
+                taking_medication,
+                medication_details,
+
+                accessibility_requirements,
+                medical_care,
+                additional_info
+            )
+            VALUES (
+                ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?, ?
+            )
+
+            ON CONFLICT(client_id) DO UPDATE SET
+                experience_level = excluded.experience_level,
+                years_of_practice = excluded.years_of_practice,
+                previous_experience = excluded.previous_experience,
+
+                had_yoga_therapy = excluded.had_yoga_therapy,
+                last_yoga_therapy_session = excluded.last_yoga_therapy_session,
+                yoga_therapy_frequency = excluded.yoga_therapy_frequency,
+                yoga_styles = excluded.yoga_styles,
+                other_yoga_style = excluded.other_yoga_style,
+
+                goals = excluded.goals,
+                other_goals = excluded.other_goals,
+
+                yoga_interests = excluded.yoga_interests,
+                other_yoga_interest = excluded.other_yoga_interest,
+
+                activity_level = excluded.activity_level,
+                stress_level = excluded.stress_level,
+
+                has_injury = excluded.has_injury,
+                injury_details = excluded.injury_details,
+
+                health_conditions = excluded.health_conditions,
+                other_health_condition = excluded.other_health_condition,
+
+                taking_medication = excluded.taking_medication,
+                medication_details = excluded.medication_details,
+
+                accessibility_requirements = excluded.accessibility_requirements,
+                medical_care = excluded.medical_care,
+                additional_info = excluded.additional_info,
+
+                updated_at = CURRENT_TIMESTAMP
+        `);
 
     statement.run(
       clientId,
       experienceLevel,
       yearsOfPractice || null,
       previousExperience || null,
-      goals || null,
+
+      hadYogaTherapy || null,
+      lastYogaTherapySession || null,
+      yogaTherapyFrequency || null,
+      JSON.stringify(yogaStyles || []),
+      otherYogaStyle || null,
+
+      JSON.stringify(goals || []),
+      otherGoals || null,
+
+      JSON.stringify(yogaInterests || []),
+      otherYogaInterest || null,
+
+      activityLevel || null,
+      stressLevel ? Number(stressLevel) : null,
+
       hasInjury,
       injuryDetails || null,
+
+      JSON.stringify(healthConditions || []),
+      otherHealthCondition || null,
+
+      takingMedication || null,
+      medicationDetails || null,
+
       accessibilityRequirements || null,
       medicalCare || null,
-      additionalInfo || null
+      additionalInformation || null
     );
 
     const savedIntake = db
-      .prepare("SELECT * FROM client_intakes WHERE client_id = ?")
+      .prepare(
+        "SELECT * FROM client_intakes WHERE client_id = ?"
+      )
       .get(clientId);
 
     res.status(200).json(savedIntake);
+
   } catch (error) {
     console.error("Failed to save intake:", error);
 
