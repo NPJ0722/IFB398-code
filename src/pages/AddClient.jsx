@@ -5,7 +5,45 @@ import {
   RegistrationLayout,
 } from "../components/RegistrationLayout";
 
-export default function AddClient({ go, Header, form, setForm }) {
+export default function AddClient({
+  go,
+  Header,
+  form,
+  setForm,
+  setCurrentClient,
+}) {
+  const handleContinue = async () => {
+    try {
+      if (!form.firstName || !form.lastName || !form.email) {
+        alert("Please enter first name, last name and email.");
+        return;
+      }
+
+      const response = await fetch("http://localhost:3001/api/clients", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || "Failed to create client.");
+        return;
+      }
+
+      console.log("Client created:", data);
+
+      setCurrentClient(data);
+
+      go("intake");
+    } catch (error) {
+      console.error("Failed to create client:", error);
+      alert("Could not connect to the server.");
+    }
+  };
   const updateField = (field, value) => {
     setForm((current) => ({
       ...current,
@@ -19,7 +57,7 @@ export default function AddClient({ go, Header, form, setForm }) {
       subtitle="Create a client record and complete registration details."
       step={1}
       back={() => go("clients")}
-      next={() => go("intake")}
+      next={handleContinue}
       nextLabel="Continue to intake"
       Header={Header}
     >
@@ -31,7 +69,7 @@ export default function AddClient({ go, Header, form, setForm }) {
             placeholder="e.g. Mia"
             value={form.firstName}
             onChange={(e) => updateField("firstName", e.target.value)}
-            />
+          />
         </Field>
 
         <Field label="Last name *">
@@ -43,12 +81,12 @@ export default function AddClient({ go, Header, form, setForm }) {
         </Field>
       </div>
 
-        <Field label="Email address *">
-            <input
-            type="email"
-            placeholder="e.g. mia.chen@email.com"
-            value={form.email}
-            onChange={(e) => updateField("email", e.target.value)}
+      <Field label="Email address *">
+        <input
+          type="email"
+          placeholder="e.g. mia.chen@email.com"
+          value={form.email}
+          onChange={(e) => updateField("email", e.target.value)}
         />
       </Field>
 
@@ -72,7 +110,6 @@ export default function AddClient({ go, Header, form, setForm }) {
 
       <Field label="Gender (optional)">
         <select
-          defaultValue=""
           value={form.gender}
           onChange={(e) => updateField("gender", e.target.value)}
         >
@@ -112,12 +149,12 @@ export default function AddClient({ go, Header, form, setForm }) {
         </Field>
       </div>
 
-        <Field label="Additional information (optional)">
-            <textarea
-                value={form.additionalInfo}
-                onChange={(e) => updateField("additionalInfo", e.target.value)}
-             />
-        </Field>
+      <Field label="Additional information (optional)">
+        <textarea
+          value={form.additionalInfo}
+          onChange={(e) => updateField("additionalInfo", e.target.value)}
+        />
+      </Field>
 
       <InfoBox title="Privacy and security">
         Client information is stored securely and only accessible to authorised

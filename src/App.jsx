@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import Intake from "./pages/Intake";
 import {
   CalendarDays,
   ChevronLeft,
@@ -155,12 +156,12 @@ function Page({ title, subtitle, action, onAction, children }) {
   );
 }
 
-function ActivityCard({a,onClick,onDragStart,onDragEnd}){return <button className={`activity-card ${a.type} ${a.position}`} onClick={onClick} draggable onDragStart={event=>onDragStart(event,a)} onDragEnd={onDragEnd}><strong>{a.title}</strong><span>{a.time}</span><small>{a.meta}</small>{a.capacity&&<em>{a.capacity}</em>}{a.badge&&<em>{a.badge}</em>}</button>}
-function CreateMenu({close,go}){const rows=[['Single class','Add a one-time class',()=>go('create-class')],['Event series','Add a fixed series of sessions',()=>go('create-series')],['Appointment','Book a private client session',()=>go('create-appointment')],['Block time','Prevent client bookings',()=>go('block-time')]];return <div className="modal-backdrop" onMouseDown={close}><section className="activity-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-heading"><div><h2>Create activity</h2><p>Choose what you want to add.</p></div><button className="icon-button" onClick={close}><X size={18}/></button></div><div className="activity-options">{rows.map(([t,d,fn])=><button key={t} onClick={fn}><span><strong>{t}</strong><small>{d}</small></span><ChevronRight size={17}/></button>)}</div></section></div>}
-function ActivityDetails({activity,close,onSave,onCancel}){const [editing,setEditing]=useState(false);const [draft,setDraft]=useState(()=>({title:activity.title,date:activity.date,time:activity.time,meta:activity.meta||''}));const [error,setError]=useState('');const date=new Date(`${activity.date}T00:00:00`);const formattedDate=new Intl.DateTimeFormat('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(date);const typeLabel=activityTypes[activity.type]?.label||'Activity';const save=event=>{event.preventDefault();if(!draft.title.trim()||!draft.date||!draft.time.trim()){setError('Title, date and time are required.');return}onSave({...activity,...draft,title:draft.title.trim(),time:draft.time.trim(),meta:draft.meta.trim()});close()};return <div className="drawer-backdrop" onMouseDown={close}><aside className="details-drawer" onMouseDown={event=>event.stopPropagation()}><div className="drawer-title"><h2>{editing?'Edit activity':'Activity details'}</h2><button onClick={close} aria-label="Close"><X/></button></div>{editing?<form className="activity-edit-form" onSubmit={save} noValidate><Field label="Title *"><input value={draft.title} onChange={event=>{setDraft(current=>({...current,title:event.target.value}));setError('')}}/></Field><Field label="Date *"><input type="date" value={draft.date} onChange={event=>{setDraft(current=>({...current,date:event.target.value}));setError('')}}/></Field><Field label="Time *"><input value={draft.time} onChange={event=>{setDraft(current=>({...current,time:event.target.value}));setError('')}} placeholder="e.g. 9:00–10:00"/></Field><Field label={activity.type==='appointment'?'Appointment details':'Location / details'}><input value={draft.meta} onChange={event=>setDraft(current=>({...current,meta:event.target.value}))}/></Field>{error&&<p className="form-error" role="alert">{error}</p>}<div className="blocked-actions"><button type="button" className="secondary-button" onClick={()=>setEditing(false)}>Back</button><button type="submit" className="primary-button">Save changes</button></div></form>:<><span className={`activity-detail-badge ${activity.type}`}>{typeLabel.toUpperCase()}</span><h3>{activity.title}</h3><p>{activity.meta||'No additional details.'}</p>{activity.type==='series'&&<div className="progress-card"><small>SERIES PROGRESS</small><strong>Session {activity.capacity||'3 of 6'}</strong><div className="progress"><i style={{width:'50%'}}/></div></div>}<h4>Activity information</h4><dl className="detail-list"><dt>Date</dt><dd>{formattedDate}</dd><dt>Time</dt><dd>{activity.time}</dd><dt>Type</dt><dd>{typeLabel}</dd><dt>Location / details</dt><dd>{activity.meta||'—'}</dd>{activity.capacity&&<><dt>Progress</dt><dd>{activity.capacity}</dd></>}</dl><div className="blocked-actions"><button className="secondary-button" onClick={()=>setEditing(true)}>Edit activity</button><button className="danger-button" onClick={()=>onCancel(activity.id)}>Cancel activity</button></div></>}</aside></div>}
-function BlockedDetails({activity,close,onEdit,onCancel}){const date=new Date(`${activity.date}T00:00:00`);const formattedDate=new Intl.DateTimeFormat('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(date);return <div className="drawer-backdrop" onMouseDown={close}><aside className="details-drawer blocked-drawer" onMouseDown={e=>e.stopPropagation()}><div className="drawer-title"><h2>Blocked time details</h2><button onClick={close} aria-label="Close"><X/></button></div><span className="blocked-badge">BLOCKED TIME</span><h3>{activity.title}</h3><p>{activity.reason||activity.meta||'No reason provided.'}</p><h4>Time information</h4><dl className="detail-list"><dt>Date</dt><dd>{formattedDate}</dd><dt>Time</dt><dd>{activity.time}</dd><dt>Time type</dt><dd>{activity.timeType||'Unavailable'}</dd><dt>Repeat</dt><dd>{activity.repeat||'Does not repeat'}</dd><dt>Client bookings</dt><dd>{activity.preventBookings===false?'Allowed':'Prevented'}</dd></dl><div className="blocked-actions"><button className="secondary-button" onClick={()=>onEdit(activity)}>Edit blocked time</button><button className="danger-button" onClick={()=>onCancel(activity.id)}>Cancel blocked time</button></div></aside></div>}
+function ActivityCard({ a, onClick, onDragStart, onDragEnd }) { return <button className={`activity-card ${a.type} ${a.position}`} onClick={onClick} draggable onDragStart={event => onDragStart(event, a)} onDragEnd={onDragEnd}><strong>{a.title}</strong><span>{a.time}</span><small>{a.meta}</small>{a.capacity && <em>{a.capacity}</em>}{a.badge && <em>{a.badge}</em>}</button> }
+function CreateMenu({ close, go }) { const rows = [['Single class', 'Add a one-time class', () => go('create-class')], ['Event series', 'Add a fixed series of sessions', () => go('create-series')], ['Appointment', 'Book a private client session', () => go('create-appointment')], ['Block time', 'Prevent client bookings', () => go('block-time')]]; return <div className="modal-backdrop" onMouseDown={close}><section className="activity-modal" onMouseDown={e => e.stopPropagation()}><div className="modal-heading"><div><h2>Create activity</h2><p>Choose what you want to add.</p></div><button className="icon-button" onClick={close}><X size={18} /></button></div><div className="activity-options">{rows.map(([t, d, fn]) => <button key={t} onClick={fn}><span><strong>{t}</strong><small>{d}</small></span><ChevronRight size={17} /></button>)}</div></section></div> }
+function ActivityDetails({ activity, close, onSave, onCancel }) { const [editing, setEditing] = useState(false); const [draft, setDraft] = useState(() => ({ title: activity.title, date: activity.date, time: activity.time, meta: activity.meta || '' })); const [error, setError] = useState(''); const date = new Date(`${activity.date}T00:00:00`); const formattedDate = new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date); const typeLabel = activityTypes[activity.type]?.label || 'Activity'; const save = event => { event.preventDefault(); if (!draft.title.trim() || !draft.date || !draft.time.trim()) { setError('Title, date and time are required.'); return } onSave({ ...activity, ...draft, title: draft.title.trim(), time: draft.time.trim(), meta: draft.meta.trim() }); close() }; return <div className="drawer-backdrop" onMouseDown={close}><aside className="details-drawer" onMouseDown={event => event.stopPropagation()}><div className="drawer-title"><h2>{editing ? 'Edit activity' : 'Activity details'}</h2><button onClick={close} aria-label="Close"><X /></button></div>{editing ? <form className="activity-edit-form" onSubmit={save} noValidate><Field label="Title *"><input value={draft.title} onChange={event => { setDraft(current => ({ ...current, title: event.target.value })); setError('') }} /></Field><Field label="Date *"><input type="date" value={draft.date} onChange={event => { setDraft(current => ({ ...current, date: event.target.value })); setError('') }} /></Field><Field label="Time *"><input value={draft.time} onChange={event => { setDraft(current => ({ ...current, time: event.target.value })); setError('') }} placeholder="e.g. 9:00–10:00" /></Field><Field label={activity.type === 'appointment' ? 'Appointment details' : 'Location / details'}><input value={draft.meta} onChange={event => setDraft(current => ({ ...current, meta: event.target.value }))} /></Field>{error && <p className="form-error" role="alert">{error}</p>}<div className="blocked-actions"><button type="button" className="secondary-button" onClick={() => setEditing(false)}>Back</button><button type="submit" className="primary-button">Save changes</button></div></form> : <><span className={`activity-detail-badge ${activity.type}`}>{typeLabel.toUpperCase()}</span><h3>{activity.title}</h3><p>{activity.meta || 'No additional details.'}</p>{activity.type === 'series' && <div className="progress-card"><small>SERIES PROGRESS</small><strong>Session {activity.capacity || '3 of 6'}</strong><div className="progress"><i style={{ width: '50%' }} /></div></div>}<h4>Activity information</h4><dl className="detail-list"><dt>Date</dt><dd>{formattedDate}</dd><dt>Time</dt><dd>{activity.time}</dd><dt>Type</dt><dd>{typeLabel}</dd><dt>Location / details</dt><dd>{activity.meta || '—'}</dd>{activity.capacity && <><dt>Progress</dt><dd>{activity.capacity}</dd></>}</dl><div className="blocked-actions"><button className="secondary-button" onClick={() => setEditing(true)}>Edit activity</button><button className="danger-button" onClick={() => onCancel(activity.id)}>Cancel activity</button></div></>}</aside></div> }
+function BlockedDetails({ activity, close, onEdit, onCancel }) { const date = new Date(`${activity.date}T00:00:00`); const formattedDate = new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date); return <div className="drawer-backdrop" onMouseDown={close}><aside className="details-drawer blocked-drawer" onMouseDown={e => e.stopPropagation()}><div className="drawer-title"><h2>Blocked time details</h2><button onClick={close} aria-label="Close"><X /></button></div><span className="blocked-badge">BLOCKED TIME</span><h3>{activity.title}</h3><p>{activity.reason || activity.meta || 'No reason provided.'}</p><h4>Time information</h4><dl className="detail-list"><dt>Date</dt><dd>{formattedDate}</dd><dt>Time</dt><dd>{activity.time}</dd><dt>Time type</dt><dd>{activity.timeType || 'Unavailable'}</dd><dt>Repeat</dt><dd>{activity.repeat || 'Does not repeat'}</dd><dt>Client bookings</dt><dd>{activity.preventBookings === false ? 'Allowed' : 'Prevented'}</dd></dl><div className="blocked-actions"><button className="secondary-button" onClick={() => onEdit(activity)}>Edit blocked time</button><button className="danger-button" onClick={() => onCancel(activity.id)}>Cancel blocked time</button></div></aside></div> }
 
-function Schedule({go,activities,notice,clearNotice,onEditBlocked,onCancelBlocked,onUpdateActivity,onCancelActivity,onMoveActivity}){const [filter,setFilter]=useState('All'),[weekStart,setWeekStart]=useState(()=>startOfWeek(new Date())),[menu,setMenu]=useState(false),[selectedActivity,setSelectedActivity]=useState(null),[selectedBlocked,setSelectedBlocked]=useState(null),[draggingId,setDraggingId]=useState(null),[dropDate,setDropDate]=useState(null);const todayKey=toDateKey(new Date());const startKey=toDateKey(weekStart);const endKey=toDateKey(addDays(weekStart,6));const visible=useMemo(()=>activities.filter(a=>a.date>=startKey&&a.date<=endKey&&(filter==='All'||activityTypes[a.type].filter===filter)),[activities,endKey,filter,startKey]);const openActivity=activity=>activity.type==='blocked'?setSelectedBlocked(activity):setSelectedActivity(activity);const startDrag=(event,activity)=>{setDraggingId(activity.id);event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(activity.id))};const finishDrag=()=>{setDraggingId(null);setDropDate(null)};const dropActivity=(event,dateKey)=>{event.preventDefault();const id=event.dataTransfer.getData('text/plain');onMoveActivity(id,dateKey);finishDrag()};return <Page title="Schedule" subtitle="Manage classes, appointments and your availability." action="Create activity" onAction={()=>setMenu(true)}>{notice&&<div className="success-toast">✓ <span>{notice}</span><button onClick={clearNotice}>×</button></div>}<section className="schedule-toolbar"><h2>{formatRange(weekStart)}</h2><div className="week-controls"><button className="icon-button" aria-label="Previous week" onClick={()=>setWeekStart(value=>addDays(value,-7))}><ChevronLeft size={18}/></button><button className="today-button" onClick={()=>setWeekStart(startOfWeek(new Date()))}>Today</button><button className="icon-button" aria-label="Next week" onClick={()=>setWeekStart(value=>addDays(value,7))}><ChevronRight size={18}/></button></div></section><section className="filter-and-legend"><div className="filters">{filters.map(f=><button key={f} className={filter===f?'selected':''} onClick={()=>setFilter(f)}>{f}</button>)}</div><div className="legend">{Object.entries(activityTypes).map(([k,v])=><span key={k} className={k}><i/>{v.label}</span>)}</div></section><section className={`calendar ${draggingId!==null?'is-dragging':''}`}>{DAYS.map((label,i)=>{const date=addDays(weekStart,i);const dateKey=toDateKey(date);const list=visible.filter(a=>a.date===dateKey);return <article className={`day-column ${dropDate===dateKey?'drop-target':''}`} key={dateKey} onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='move';setDropDate(dateKey)}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setDropDate(null)}} onDrop={event=>dropActivity(event,dateKey)}><header><span>{label}</span><strong className={dateKey===todayKey?'today-date':''}>{date.getDate()}</strong></header><div className="day-content">{list.map(a=><ActivityCard key={a.id} a={a} onClick={()=>openActivity(a)} onDragStart={startDrag} onDragEnd={finishDrag}/>)}</div></article>})}{visible.length===0&&<div className="empty-state"><CalendarDays/><strong>No activities this week</strong><span>Use Create activity to add something to this schedule.</span></div>}<p className="calendar-tip">Tip: Select an activity for details, or drag it to another day.</p></section>{menu&&<CreateMenu close={()=>setMenu(false)} go={p=>{setMenu(false);go(p)}}/>}{selectedActivity&&<ActivityDetails activity={selectedActivity} close={()=>setSelectedActivity(null)} onSave={onUpdateActivity} onCancel={id=>{if(window.confirm('Cancel this activity?')){setSelectedActivity(null);onCancelActivity(id)}}}/>} {selectedBlocked&&<BlockedDetails activity={selectedBlocked} close={()=>setSelectedBlocked(null)} onEdit={activity=>{setSelectedBlocked(null);onEditBlocked(activity)}} onCancel={id=>{if(window.confirm('Cancel this blocked time?')){setSelectedBlocked(null);onCancelBlocked(id)}}}/>}</Page>}
+function Schedule({ go, activities, notice, clearNotice, onEditBlocked, onCancelBlocked, onUpdateActivity, onCancelActivity, onMoveActivity }) { const [filter, setFilter] = useState('All'), [weekStart, setWeekStart] = useState(() => startOfWeek(new Date())), [menu, setMenu] = useState(false), [selectedActivity, setSelectedActivity] = useState(null), [selectedBlocked, setSelectedBlocked] = useState(null), [draggingId, setDraggingId] = useState(null), [dropDate, setDropDate] = useState(null); const todayKey = toDateKey(new Date()); const startKey = toDateKey(weekStart); const endKey = toDateKey(addDays(weekStart, 6)); const visible = useMemo(() => activities.filter(a => a.date >= startKey && a.date <= endKey && (filter === 'All' || activityTypes[a.type].filter === filter)), [activities, endKey, filter, startKey]); const openActivity = activity => activity.type === 'blocked' ? setSelectedBlocked(activity) : setSelectedActivity(activity); const startDrag = (event, activity) => { setDraggingId(activity.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(activity.id)) }; const finishDrag = () => { setDraggingId(null); setDropDate(null) }; const dropActivity = (event, dateKey) => { event.preventDefault(); const id = event.dataTransfer.getData('text/plain'); onMoveActivity(id, dateKey); finishDrag() }; return <Page title="Schedule" subtitle="Manage classes, appointments and your availability." action="Create activity" onAction={() => setMenu(true)}>{notice && <div className="success-toast">✓ <span>{notice}</span><button onClick={clearNotice}>×</button></div>}<section className="schedule-toolbar"><h2>{formatRange(weekStart)}</h2><div className="week-controls"><button className="icon-button" aria-label="Previous week" onClick={() => setWeekStart(value => addDays(value, -7))}><ChevronLeft size={18} /></button><button className="today-button" onClick={() => setWeekStart(startOfWeek(new Date()))}>Today</button><button className="icon-button" aria-label="Next week" onClick={() => setWeekStart(value => addDays(value, 7))}><ChevronRight size={18} /></button></div></section><section className="filter-and-legend"><div className="filters">{filters.map(f => <button key={f} className={filter === f ? 'selected' : ''} onClick={() => setFilter(f)}>{f}</button>)}</div><div className="legend">{Object.entries(activityTypes).map(([k, v]) => <span key={k} className={k}><i />{v.label}</span>)}</div></section><section className={`calendar ${draggingId !== null ? 'is-dragging' : ''}`}>{DAYS.map((label, i) => { const date = addDays(weekStart, i); const dateKey = toDateKey(date); const list = visible.filter(a => a.date === dateKey); return <article className={`day-column ${dropDate === dateKey ? 'drop-target' : ''}`} key={dateKey} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropDate(dateKey) }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDropDate(null) }} onDrop={event => dropActivity(event, dateKey)}><header><span>{label}</span><strong className={dateKey === todayKey ? 'today-date' : ''}>{date.getDate()}</strong></header><div className="day-content">{list.map(a => <ActivityCard key={a.id} a={a} onClick={() => openActivity(a)} onDragStart={startDrag} onDragEnd={finishDrag} />)}</div></article> })}{visible.length === 0 && <div className="empty-state"><CalendarDays /><strong>No activities this week</strong><span>Use Create activity to add something to this schedule.</span></div>}<p className="calendar-tip">Tip: Select an activity for details, or drag it to another day.</p></section>{menu && <CreateMenu close={() => setMenu(false)} go={p => { setMenu(false); go(p) }} />}{selectedActivity && <ActivityDetails activity={selectedActivity} close={() => setSelectedActivity(null)} onSave={onUpdateActivity} onCancel={id => { if (window.confirm('Cancel this activity?')) { setSelectedActivity(null); onCancelActivity(id) } }} />} {selectedBlocked && <BlockedDetails activity={selectedBlocked} close={() => setSelectedBlocked(null)} onEdit={activity => { setSelectedBlocked(null); onEditBlocked(activity) }} onCancel={id => { if (window.confirm('Cancel this blocked time?')) { setSelectedBlocked(null); onCancelBlocked(id) } }} />}</Page> }
 
 const Stat = ({ label, value }) => (
   <div className="stat-card">
@@ -284,10 +285,10 @@ function SettingsPage() {
   );
 }
 
-function CreateScheduledActivity({go,onSubmit,type}){const isAppointment=type==='appointment';const [form,setForm]=useState({title:'',date:toDateKey(new Date()),startTime:'09:00',endTime:'10:00',location:''});const [error,setError]=useState('');const update=(field,value)=>{setForm(current=>({...current,[field]:value}));setError('')};const submit=event=>{event.preventDefault();if(!form.title.trim()){setError(`${isAppointment?'Client name':'Class title'} is required.`);return}if(!form.date){setError('Date is required.');return}if(!form.startTime||!form.endTime||form.endTime<=form.startTime){setError('End time must be later than start time.');return}onSubmit({...form,type,title:form.title.trim(),location:form.location.trim()});go('schedule')};return <main className="form-page"><button className="back-link" onClick={()=>go('schedule')}>‹ Schedule</button><Header title={isAppointment?'Create appointment':'Create single class'} subtitle={isAppointment?'Book a private session for a client.':'Add a one-time class to the weekly schedule.'}/><form className="form-card compact-form" onSubmit={submit} noValidate><Field label={`${isAppointment?'Client name':'Class title'} *`}><input value={form.title} onChange={event=>update('title',event.target.value)} placeholder={isAppointment?'Enter client name':'Enter class title'}/></Field><Field label="Date *"><input type="date" value={form.date} onChange={event=>update('date',event.target.value)}/></Field><div className="two-cols"><Field label="Start time *"><input type="time" value={form.startTime} onChange={event=>update('startTime',event.target.value)}/></Field><Field label="End time *"><input type="time" value={form.endTime} onChange={event=>update('endTime',event.target.value)}/></Field></div><Field label={isAppointment?'Room / online details':'Location'}><input value={form.location} onChange={event=>update('location',event.target.value)} placeholder={isAppointment?'e.g. Room 2 or Zoom':'e.g. Studio A'}/></Field>{error&&<p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={()=>go('schedule')}>Cancel</button><button type="submit" className="primary-button">{isAppointment?'Create appointment':'Create class'}</button></div></form></main>}
+function CreateScheduledActivity({ go, onSubmit, type }) { const isAppointment = type === 'appointment'; const [form, setForm] = useState({ title: '', date: toDateKey(new Date()), startTime: '09:00', endTime: '10:00', location: '' }); const [error, setError] = useState(''); const update = (field, value) => { setForm(current => ({ ...current, [field]: value })); setError('') }; const submit = event => { event.preventDefault(); if (!form.title.trim()) { setError(`${isAppointment ? 'Client name' : 'Class title'} is required.`); return } if (!form.date) { setError('Date is required.'); return } if (!form.startTime || !form.endTime || form.endTime <= form.startTime) { setError('End time must be later than start time.'); return } onSubmit({ ...form, type, title: form.title.trim(), location: form.location.trim() }); go('schedule') }; return <main className="form-page"><button className="back-link" onClick={() => go('schedule')}>‹ Schedule</button><Header title={isAppointment ? 'Create appointment' : 'Create single class'} subtitle={isAppointment ? 'Book a private session for a client.' : 'Add a one-time class to the weekly schedule.'} /><form className="form-card compact-form" onSubmit={submit} noValidate><Field label={`${isAppointment ? 'Client name' : 'Class title'} *`}><input value={form.title} onChange={event => update('title', event.target.value)} placeholder={isAppointment ? 'Enter client name' : 'Enter class title'} /></Field><Field label="Date *"><input type="date" value={form.date} onChange={event => update('date', event.target.value)} /></Field><div className="two-cols"><Field label="Start time *"><input type="time" value={form.startTime} onChange={event => update('startTime', event.target.value)} /></Field><Field label="End time *"><input type="time" value={form.endTime} onChange={event => update('endTime', event.target.value)} /></Field></div><Field label={isAppointment ? 'Room / online details' : 'Location'}><input value={form.location} onChange={event => update('location', event.target.value)} placeholder={isAppointment ? 'e.g. Room 2 or Zoom' : 'e.g. Studio A'} /></Field>{error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={() => go('schedule')}>Cancel</button><button type="submit" className="primary-button">{isAppointment ? 'Create appointment' : 'Create class'}</button></div></form></main> }
 
-function BlockTime({go,onSubmit,initial}){const [form,setForm]=useState(()=>initial?{timeType:initial.timeType||'Personal appointment',title:initial.title,date:initial.date,endDate:initial.date,startTime:initial.startTime||'14:00',endTime:initial.endTime||'16:00',repeat:initial.repeat||'Does not repeat',reason:initial.reason||'',preventBookings:initial.preventBookings!==false}:{timeType:'Personal appointment',title:'',date:toDateKey(new Date()),endDate:toDateKey(new Date()),startTime:'14:00',endTime:'16:00',repeat:'Does not repeat',reason:'',preventBookings:true});const [error,setError]=useState('');const update=(field,value)=>{setForm(current=>({...current,[field]:value,...(field==='date'&&current.endDate<value?{endDate:value}:{})}));if((field==='title'&&value.trim())||field==='date'||field==='endDate'||field==='startTime'||field==='endTime')setError('')};const submit=event=>{event.preventDefault();if(!form.title.trim()){setError('Title is required. Please enter a title.');return}if(!form.date||!form.endDate){setError('Start date and end date are required.');return}if(form.endDate<form.date){setError('End date must be the same as or later than start date.');return}if(!form.startTime||!form.endTime||form.endTime<=form.startTime){setError('End time must be later than start time.');return}onSubmit({...form,id:initial?.id,title:form.title.trim()});go('schedule')};return <main className="form-page"><button className="back-link" onClick={()=>go('schedule')}>‹ Schedule</button><Header title={initial?'Edit blocked time':'Block personal or work time'} subtitle={initial?'Update this unavailable period.':'Add unavailable time to prevent clients from booking you.'}/><form className="form-card compact-form" onSubmit={submit} noValidate><Field label="Time type"><select value={form.timeType} onChange={e=>update('timeType',e.target.value)}><option>Personal appointment</option><option>Administration work</option></select></Field><Field label="Title *"><input value={form.title} onChange={e=>update('title',e.target.value)} placeholder="Enter a title" aria-required="true"/></Field><div className="two-cols"><Field label="Start date"><input type="date" value={form.date} onChange={e=>update('date',e.target.value)} required/></Field><Field label="End date"><input type="date" value={form.endDate} min={form.date} onChange={e=>update('endDate',e.target.value)} required/></Field></div><div className="two-cols"><Field label="Start time"><input type="time" value={form.startTime} onChange={e=>update('startTime',e.target.value)} required/></Field><Field label="End time"><input type="time" value={form.endTime} onChange={e=>update('endTime',e.target.value)} required/></Field></div><Field label="Repeat"><select value={form.repeat} onChange={e=>update('repeat',e.target.value)}><option>Does not repeat</option><option>Weekly</option></select></Field><Field label="Reason"><textarea value={form.reason} onChange={e=>update('reason',e.target.value)} placeholder="e.g. Personal appointment or administration work"/></Field><label className="check-line"><input type="checkbox" checked={form.preventBookings} onChange={e=>update('preventBookings',e.target.checked)}/> Prevent client bookings during this time</label>{error&&<p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={()=>go('schedule')}>Cancel</button><button type="submit" className="primary-button">{initial?'Save changes':'Block time'}</button></div></form></main>}
-function CreateSeries({go}){return <main className="form-page"><button className="back-link" onClick={()=>go('series')}>‹ Event Series</button><Header title="Create Event Series" subtitle="Create a multi-session program and manage all sessions in one place."/><section className="form-card wide-form"><h2>Basic information</h2><Field label="Series name"><input defaultValue="Strong Start"/></Field><Field label="Description"><textarea defaultValue="A six-week beginner program focused on strength and balance."/></Field><div className="two-cols"><Field label="Instructor"><select><option>Claire</option></select></Field><Field label="Location"><select><option>Studio A</option></select></Field></div><h2>Sessions</h2><div className="session-editor"><small>SESSION 1</small><strong>Wednesday, 16 September 2026</strong><span>9:00–10:00 AM · Studio A</span><span>Capacity: 12 participants</span></div><button className="add-outline">＋ Add another session</button><h2>Booking settings</h2><div className="three-cols"><Field label="Capacity"><input defaultValue="12 participants"/></Field><Field label="Program price"><input defaultValue="$120 for 6 sessions"/></Field><Field label="Booking opens"><select><option>Immediately</option></select></Field></div><label className="check-line"><input type="checkbox" defaultChecked/> Allow clients to join after the series has started</label><p className="helper">Clients joining late will see the remaining sessions and adjusted availability.</p><div className="form-actions"><button className="secondary-button" onClick={()=>go('series')}>Cancel</button><button className="primary-button" onClick={()=>go('series')}>Create event series</button></div></section></main>}
+function BlockTime({ go, onSubmit, initial }) { const [form, setForm] = useState(() => initial ? { timeType: initial.timeType || 'Personal appointment', title: initial.title, date: initial.date, endDate: initial.date, startTime: initial.startTime || '14:00', endTime: initial.endTime || '16:00', repeat: initial.repeat || 'Does not repeat', reason: initial.reason || '', preventBookings: initial.preventBookings !== false } : { timeType: 'Personal appointment', title: '', date: toDateKey(new Date()), endDate: toDateKey(new Date()), startTime: '14:00', endTime: '16:00', repeat: 'Does not repeat', reason: '', preventBookings: true }); const [error, setError] = useState(''); const update = (field, value) => { setForm(current => ({ ...current, [field]: value, ...(field === 'date' && current.endDate < value ? { endDate: value } : {}) })); if ((field === 'title' && value.trim()) || field === 'date' || field === 'endDate' || field === 'startTime' || field === 'endTime') setError('') }; const submit = event => { event.preventDefault(); if (!form.title.trim()) { setError('Title is required. Please enter a title.'); return } if (!form.date || !form.endDate) { setError('Start date and end date are required.'); return } if (form.endDate < form.date) { setError('End date must be the same as or later than start date.'); return } if (!form.startTime || !form.endTime || form.endTime <= form.startTime) { setError('End time must be later than start time.'); return } onSubmit({ ...form, id: initial?.id, title: form.title.trim() }); go('schedule') }; return <main className="form-page"><button className="back-link" onClick={() => go('schedule')}>‹ Schedule</button><Header title={initial ? 'Edit blocked time' : 'Block personal or work time'} subtitle={initial ? 'Update this unavailable period.' : 'Add unavailable time to prevent clients from booking you.'} /><form className="form-card compact-form" onSubmit={submit} noValidate><Field label="Time type"><select value={form.timeType} onChange={e => update('timeType', e.target.value)}><option>Personal appointment</option><option>Administration work</option></select></Field><Field label="Title *"><input value={form.title} onChange={e => update('title', e.target.value)} placeholder="Enter a title" aria-required="true" /></Field><div className="two-cols"><Field label="Start date"><input type="date" value={form.date} onChange={e => update('date', e.target.value)} required /></Field><Field label="End date"><input type="date" value={form.endDate} min={form.date} onChange={e => update('endDate', e.target.value)} required /></Field></div><div className="two-cols"><Field label="Start time"><input type="time" value={form.startTime} onChange={e => update('startTime', e.target.value)} required /></Field><Field label="End time"><input type="time" value={form.endTime} onChange={e => update('endTime', e.target.value)} required /></Field></div><Field label="Repeat"><select value={form.repeat} onChange={e => update('repeat', e.target.value)}><option>Does not repeat</option><option>Weekly</option></select></Field><Field label="Reason"><textarea value={form.reason} onChange={e => update('reason', e.target.value)} placeholder="e.g. Personal appointment or administration work" /></Field><label className="check-line"><input type="checkbox" checked={form.preventBookings} onChange={e => update('preventBookings', e.target.checked)} /> Prevent client bookings during this time</label>{error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={() => go('schedule')}>Cancel</button><button type="submit" className="primary-button">{initial ? 'Save changes' : 'Block time'}</button></div></form></main> }
+function CreateSeries({ go }) { return <main className="form-page"><button className="back-link" onClick={() => go('series')}>‹ Event Series</button><Header title="Create Event Series" subtitle="Create a multi-session program and manage all sessions in one place." /><section className="form-card wide-form"><h2>Basic information</h2><Field label="Series name"><input defaultValue="Strong Start" /></Field><Field label="Description"><textarea defaultValue="A six-week beginner program focused on strength and balance." /></Field><div className="two-cols"><Field label="Instructor"><select><option>Claire</option></select></Field><Field label="Location"><select><option>Studio A</option></select></Field></div><h2>Sessions</h2><div className="session-editor"><small>SESSION 1</small><strong>Wednesday, 16 September 2026</strong><span>9:00–10:00 AM · Studio A</span><span>Capacity: 12 participants</span></div><button className="add-outline">＋ Add another session</button><h2>Booking settings</h2><div className="three-cols"><Field label="Capacity"><input defaultValue="12 participants" /></Field><Field label="Program price"><input defaultValue="$120 for 6 sessions" /></Field><Field label="Booking opens"><select><option>Immediately</option></select></Field></div><label className="check-line"><input type="checkbox" defaultChecked /> Allow clients to join after the series has started</label><p className="helper">Clients joining late will see the remaining sessions and adjusted availability.</p><div className="form-actions"><button className="secondary-button" onClick={() => go('series')}>Cancel</button><button className="primary-button" onClick={() => go('series')}>Create event series</button></div></section></main> }
 
 const STEPS = [
   "Client details",
@@ -342,59 +343,7 @@ function Reg({ title, subtitle, step, children, back, next, nextLabel }) {
     </main>
   );
 }
-function Intake({ go }) {
-  return (
-    <Reg
-      title="Client Intake Form"
-      subtitle="Collect information to help provide a safe and tailored yoga experience."
-      step={2}
-      back={() => go("add-client")}
-      next={() => go("eligibility")}
-      nextLabel="Save & Continue"
-    >
-      <h2>Yoga experience</h2>
-      <Field label="Experience level *">
-        <select>
-          <option>Beginner</option>
-        </select>
-      </Field>
-      <Field label="Years of practice (optional)">
-        <input placeholder="e.g. 1–2 years" />
-      </Field>
-      <Field label="Previous yoga experience">
-        <textarea />
-      </Field>
-      <Field label="Goals / reasons for practising yoga">
-        <textarea />
-      </Field>
-      <h2>Health &amp; safety information</h2>
-      <Field label="Do you have any current injuries or physical limitations? *">
-        <div className="radio-line">
-          <label>
-            <input type="radio" name="injury" /> Yes
-          </label>
-          <label>
-            <input type="radio" name="injury" defaultChecked /> No
-          </label>
-        </div>
-      </Field>
-      {[
-        "If yes, please provide details",
-        "Accessibility requirements (optional)",
-        "Are you currently under medical care? (optional)",
-        "Is there anything else the practitioner should know? (optional)",
-      ].map((x) => (
-        <Field label={x} key={x}>
-          <textarea />
-        </Field>
-      ))}
-      <InfoBox title="Your information">
-        The information you provide will only be accessible to authorised staff
-        and stored securely.
-      </InfoBox>
-    </Reg>
-  );
-}
+
 function Eligibility({ go }) {
   return (
     <Reg
@@ -546,6 +495,7 @@ export default function App() {
   const currentWeek = useMemo(() => startOfWeek(new Date()), []);
   const [page, setPage] = useState("schedule");
   const [clients, setClients] = useState(initialClients);
+  const [currentClient, setCurrentClient] = useState(null);
   const [notice, setNotice] = useState(false);
   const [registrationData, setRegistrationData] = useState({
     firstName: "",
@@ -571,35 +521,10 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const saveClientToDatabase = async () => {
+  const saveClientToDatabase = () => {
     try {
-      const response = await fetch("http://localhost:3001/api/clients", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(registrationData),
-      });
-
-      const text = await response.text();
-
-      console.log("STATUS:", response.status);
-      console.log("CONTENT TYPE:", response.headers.get("content-type"));
-      console.log("RAW RESPONSE:", text);
-
-      let data;
-
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error("Server returned non-JSON response: " + text.slice(0, 100));
-      }
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to add client");
-      }
-
-      console.log("Client saved:", data);
+      // Client and intake have already been saved to the database
+      console.log("Registration completed for:", currentClient);
 
       // Clear registration form
       setRegistrationData({
@@ -615,6 +540,9 @@ export default function App() {
         additionalInfo: "",
       });
 
+      // Clear current client
+      setCurrentClient(null);
+
       // Return to Clients page
       go("clients");
     } catch (error) {
@@ -622,77 +550,86 @@ export default function App() {
       alert(error.message);
     }
   };
-  const addClient = (clientData) => {
-    const newClient = {
-      id: Date.now(),
-      ...clientData,
-      membership: 'New client',
-      lastActivity: 'Just added'
-    };
 
-    setClients((currentClients) => [
-      ...currentClients,
-      newClient
-    ]);
+  const addClient = (clientData) => {
+  const newClient = {
+    id: Date.now(),
+    ...clientData,
+    membership: 'New client',
+    lastActivity: 'Just added'
   };
-  const addBlockedTime = (form) => {
-    setActivities((current) => [
-      ...current,
-      {
-        id: `blocked-${Date.now()}`,
-        type: "blocked",
-        title: form.title,
-        date: form.date,
-        time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
-        meta: form.reason.trim() || form.timeType,
-        position: positionFromTime(form.startTime),
-        badge: form.preventBookings ? "No bookings" : undefined,
-      },
-    ]);
-    setNotice(true);
-  };
-  let view;
-  if (page === "schedule")
-    view = (
-      <Schedule
-        go={go}
-        activities={activities}
-        notice={notice}
-        clearNotice={() => setNotice(false)}
-      />
-    );
-  else if (page === "clients")
-    view = <Clients go={go} Page={Page} clients={clients} />;
-  else if (page === "series") view = <Series go={go} />;
-  else if (page === "appointments") view = <Appointments />;
-  else if (page === "settings") view = <SettingsPage />;
-  else if (page === "block-time")
-    view = <BlockTime go={go} onSubmit={addBlockedTime} />;
-  else if (page === "create-series") view = <CreateSeries go={go} />;
-  else if (page === "add-client")
-    view = (
-      <AddClient
-        go={go}
-        Header={Header}
-        form={registrationData}
-        setForm={setRegistrationData}
-      />
-    );
-  else if (page === "intake") view = <Intake go={go} />;
-  else if (page === "eligibility") view = <Eligibility go={go} />;
-  else if (page === "complete")
-    view = (
-      <Complete
-        go={go}
-        onComplete={saveClientToDatabase}
-      />
-    );
-  else if (page === "complete") view = <Complete go={go} />;
-  else view = <ClientProfile go={go} />;
-  return (
-    <div className="app-shell">
-      <Sidebar page={page} go={go} />
-      {view}
-    </div>
+
+  setClients((currentClients) => [
+    ...currentClients,
+    newClient
+  ]);
+};
+const addBlockedTime = (form) => {
+  setActivities((current) => [
+    ...current,
+    {
+      id: `blocked-${Date.now()}`,
+      type: "blocked",
+      title: form.title,
+      date: form.date,
+      time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
+      meta: form.reason.trim() || form.timeType,
+      position: positionFromTime(form.startTime),
+      badge: form.preventBookings ? "No bookings" : undefined,
+    },
+  ]);
+  setNotice(true);
+};
+let view;
+if (page === "schedule")
+  view = (
+    <Schedule
+      go={go}
+      activities={activities}
+      notice={notice}
+      clearNotice={() => setNotice(false)}
+    />
   );
+else if (page === "clients")
+  view = <Clients go={go} Page={Page} clients={clients} />;
+else if (page === "series") view = <Series go={go} />;
+else if (page === "appointments") view = <Appointments />;
+else if (page === "settings") view = <SettingsPage />;
+else if (page === "block-time")
+  view = <BlockTime go={go} onSubmit={addBlockedTime} />;
+else if (page === "create-series") view = <CreateSeries go={go} />;
+else if (page === "add-client")
+  view = (
+    <AddClient
+      go={go}
+      Header={Header}
+      form={registrationData}
+      setForm={setRegistrationData}
+      setCurrentClient={setCurrentClient}
+    />
+  );
+else if (page === "intake")
+  view = (
+    <Intake
+      go={go}
+      Header={Header}
+      currentClient={currentClient}
+    />
+  );
+else if (page === "eligibility") view = <Eligibility go={go} />;
+else if (page === "complete")
+  view = (
+    <Complete
+      go={go}
+      onComplete={saveClientToDatabase}
+    />
+  );
+else if (page === "complete") view = <Complete go={go} />;
+else view = <ClientProfile go={go} />;
+return (
+  <div className="app-shell">
+    <Sidebar page={page} go={go} />
+    {view}
+  </div>
+);
 }
