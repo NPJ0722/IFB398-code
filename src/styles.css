@@ -992,6 +992,28 @@ main {
   font-weight: 650;
   cursor: pointer;
 }
+.blocked-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 22px;
+  border: 1px solid #d8a3a3;
+  border-radius: 11px;
+  background: #fff;
+  color: #a13b3b;
+  font-weight: 650;
+  cursor: pointer;
+}
+.danger-button:hover {
+  border-color: #bd6565;
+  background: #fff5f5;
+}
 .session-editor {
   display: flex;
   flex-direction: column;
