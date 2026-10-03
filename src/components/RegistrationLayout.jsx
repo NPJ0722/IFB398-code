@@ -73,7 +73,7 @@ export function RegistrationLayout({
         ‹ Back to Add New Client
       </button>
 
-      <Header title={title} subtitle={subtitle} />
+      {Header && <Header title={title} subtitle={subtitle} />}
 
       <div className="registration-grid">
         <section className="form-card">{children}</section>
