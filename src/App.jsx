@@ -220,42 +220,84 @@ function Series({ go }) {
     </Page>
   );
 }
-function Appointments() {
-  const rows = [
-    ["TODAY · 1:30 PM", "Jane Wilson", "Private yoga · Room 2"],
-    ["FRI 18 · 10:00 AM", "Michael Chen", "Initial consultation · Online"],
-    ["MON 21 · 3:00 PM", "Sarah Brown", "Private yoga · Studio A"],
-    ["WED 23 · 11:30 AM", "Emily Davis", "Follow-up · Online"],
-  ];
+function Appointments({ activities, go, onUpdateActivity, onCancelActivity }) {
+  const [selectedActivity, setSelectedActivity] = useState(null);
+  const todayKey = toDateKey(new Date());
+  const appointments = activities
+    .filter((activity) => activity.type === "appointment")
+    .sort((a, b) =>
+      `${a.date}${a.startTime || a.time}`.localeCompare(
+        `${b.date}${b.startTime || b.time}`,
+      ),
+    );
+  const todayCount = appointments.filter(
+    (activity) => activity.date === todayKey,
+  ).length;
+  const dateLabel = (activity) => {
+    const date = new Date(`${activity.date}T00:00:00`);
+    const day =
+      activity.date === todayKey
+        ? "TODAY"
+        : new Intl.DateTimeFormat("en-AU", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          })
+            .format(date)
+            .toUpperCase();
+    return `${day} · ${activity.time.split("–")[0].trim()}`;
+  };
   return (
     <Page
       title="Appointments"
       subtitle="Manage private sessions and client bookings."
       action="New appointment"
+      onAction={() => go("create-appointment")}
     >
       <section className="appointments-layout">
         <div>
           <h2 className="section-title">Upcoming appointments</h2>
           <div className="panel appointment-list">
-            {rows.map((r) => (
-              <div className="appointment-row" key={r[0]}>
-                <strong>{r[0]}</strong>
+            {appointments.map((activity) => (
+              <button
+                type="button"
+                className="appointment-row"
+                key={activity.id}
+                onClick={() => setSelectedActivity(activity)}
+              >
+                <strong>{dateLabel(activity)}</strong>
                 <span>
-                  <b>{r[1]}</b>
-                  <small>{r[2]}</small>
+                  <b>{activity.title}</b>
+                  <small>{activity.meta || "Private appointment"}</small>
                 </span>
                 <ChevronRight size={18} />
-              </div>
+              </button>
             ))}
+            {appointments.length === 0 && (
+              <p className="helper">No appointments have been created yet.</p>
+            )}
           </div>
         </div>
         <aside className="today-summary">
           <small>TODAY</small>
-          <strong>1</strong>
-          <span>private appointment</span>
+          <strong>{todayCount}</strong>
+          <span>{todayCount === 1 ? "private appointment" : "private appointments"}</span>
           <p>No booking conflicts</p>
         </aside>
       </section>
+      {selectedActivity && (
+        <ActivityDetails
+          activity={selectedActivity}
+          close={() => setSelectedActivity(null)}
+          onSave={onUpdateActivity}
+          onCancel={(id) => {
+            if (window.confirm("Cancel this appointment?")) {
+              setSelectedActivity(null);
+              onCancelActivity(id);
+            }
+          }}
+        />
+      )}
     </Page>
   );
 }
@@ -482,7 +524,16 @@ function ClientProfile({ go }) {
           <p>✓ Intake form completed</p>
           <p>✓ Eligibility confirmed</p>
           <p>✓ Waiver signed</p>
-          <button className="secondary-button">
+          <button
+            className="secondary-button"
+            onClick={() =>
+              window.open(
+                `${import.meta.env.BASE_URL}forms/yoga-therapy-intake-form.pdf`,
+                "_blank",
+                "noopener,noreferrer",
+              )
+            }
+          >
             <Eye size={16} /> View intake form
           </button>
         </aside>
@@ -496,7 +547,8 @@ export default function App() {
   const [page, setPage] = useState("schedule");
   const [clients, setClients] = useState(initialClients);
   const [currentClient, setCurrentClient] = useState(null);
-  const [notice, setNotice] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [editingBlocked, setEditingBlocked] = useState(null);
   const [registrationData, setRegistrationData] = useState({
     firstName: "",
     lastName: "",
@@ -513,6 +565,16 @@ export default function App() {
     sampleActivities.map((activity) => ({
       ...activity,
       date: toDateKey(addDays(currentWeek, activity.dayOffset)),
+      ...(activity.type === "blocked"
+        ? {
+            timeType: "Administration work",
+            startTime: "14:00",
+            endTime: "16:00",
+            repeat: "Does not repeat",
+            reason: activity.meta,
+            preventBookings: true,
+          }
+        : {}),
     })),
   );
   const go = (p) => {
@@ -564,21 +626,109 @@ export default function App() {
     newClient
   ]);
 };
-const addBlockedTime = (form) => {
-  setActivities((current) => [
-    ...current,
-    {
-      id: `blocked-${Date.now()}`,
-      type: "blocked",
-      title: form.title,
-      date: form.date,
-      time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
-      meta: form.reason.trim() || form.timeType,
-      position: positionFromTime(form.startTime),
-      badge: form.preventBookings ? "No bookings" : undefined,
-    },
-  ]);
-  setNotice(true);
+const saveScheduledActivity = (form) => {
+  const activity = {
+    id: `${form.type}-${Date.now()}`,
+    type: form.type,
+    title: form.title,
+    date: form.date,
+    startTime: form.startTime,
+    endTime: form.endTime,
+    time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
+    meta:
+      form.type === "appointment"
+        ? `Appointment${form.location ? ` · ${form.location}` : ""}`
+        : form.location || "Location not set",
+    position: positionFromTime(form.startTime),
+  };
+  setActivities((current) => [...current, activity]);
+  setNotice(
+    form.type === "appointment"
+      ? "Appointment created."
+      : "Single class created.",
+  );
+};
+
+const saveBlockedTime = (form) => {
+  const createBlocked = (date, id) => ({
+    id,
+    type: "blocked",
+    title: form.title,
+    date,
+    startTime: form.startTime,
+    endTime: form.endTime,
+    time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
+    timeType: form.timeType,
+    repeat: form.repeat,
+    reason: form.reason,
+    preventBookings: form.preventBookings,
+    meta: form.reason.trim() || form.timeType,
+    position: positionFromTime(form.startTime),
+    badge: form.preventBookings ? "No bookings" : undefined,
+  });
+
+  if (form.id) {
+    setActivities((current) =>
+      current.map((activity) =>
+        activity.id === form.id
+          ? createBlocked(form.date, activity.id)
+          : activity,
+      ),
+    );
+    setNotice("Blocked time updated.");
+  } else {
+    const blocks = [];
+    let date = new Date(`${form.date}T00:00:00`);
+    const endDate = new Date(`${form.endDate}T00:00:00`);
+    let index = 0;
+    while (date <= endDate) {
+      blocks.push(
+        createBlocked(toDateKey(date), `blocked-${Date.now()}-${index}`),
+      );
+      date = addDays(date, 1);
+      index += 1;
+    }
+    setActivities((current) => [...current, ...blocks]);
+    setNotice(
+      blocks.length === 1
+        ? "Blocked time created."
+        : `${blocks.length} blocked times created.`,
+    );
+  }
+  setEditingBlocked(null);
+};
+
+const editBlocked = (activity) => {
+  setEditingBlocked(activity);
+  go("block-time");
+};
+const cancelBlocked = (id) => {
+  setActivities((current) =>
+    current.filter((activity) => activity.id !== id),
+  );
+  setNotice("Blocked time cancelled.");
+};
+const updateActivity = (updated) => {
+  setActivities((current) =>
+    current.map((activity) =>
+      activity.id === updated.id ? updated : activity,
+    ),
+  );
+  setNotice("Activity updated.");
+};
+const cancelActivity = (id) => {
+  setActivities((current) =>
+    current.filter((activity) => activity.id !== id),
+  );
+  setNotice("Activity cancelled.");
+};
+const moveActivity = (id, date) => {
+  setActivities((current) =>
+    current.map((activity) =>
+      String(activity.id) === String(id) ? { ...activity, date } : activity,
+    ),
+  );
+  setNotice("Activity moved.");
 };
 let view;
 if (page === "schedule")
@@ -587,16 +737,54 @@ if (page === "schedule")
       go={go}
       activities={activities}
       notice={notice}
-      clearNotice={() => setNotice(false)}
+      clearNotice={() => setNotice("")}
+      onEditBlocked={editBlocked}
+      onCancelBlocked={cancelBlocked}
+      onUpdateActivity={updateActivity}
+      onCancelActivity={cancelActivity}
+      onMoveActivity={moveActivity}
     />
   );
 else if (page === "clients")
   view = <Clients go={go} Page={Page} clients={clients} />;
 else if (page === "series") view = <Series go={go} />;
-else if (page === "appointments") view = <Appointments />;
+else if (page === "appointments")
+  view = (
+    <Appointments
+      activities={activities}
+      go={go}
+      onUpdateActivity={updateActivity}
+      onCancelActivity={cancelActivity}
+    />
+  );
 else if (page === "settings") view = <SettingsPage />;
 else if (page === "block-time")
-  view = <BlockTime go={go} onSubmit={addBlockedTime} />;
+  view = (
+    <BlockTime
+      go={(nextPage) => {
+        if (nextPage === "schedule") setEditingBlocked(null);
+        go(nextPage);
+      }}
+      onSubmit={saveBlockedTime}
+      initial={editingBlocked}
+    />
+  );
+else if (page === "create-class")
+  view = (
+    <CreateScheduledActivity
+      go={go}
+      onSubmit={saveScheduledActivity}
+      type="class"
+    />
+  );
+else if (page === "create-appointment")
+  view = (
+    <CreateScheduledActivity
+      go={go}
+      onSubmit={saveScheduledActivity}
+      type="appointment"
+    />
+  );
 else if (page === "create-series") view = <CreateSeries go={go} />;
 else if (page === "add-client")
   view = (
@@ -624,7 +812,6 @@ else if (page === "complete")
       onComplete={saveClientToDatabase}
     />
   );
-else if (page === "complete") view = <Complete go={go} />;
 else view = <ClientProfile go={go} />;
 return (
   <div className="app-shell">
