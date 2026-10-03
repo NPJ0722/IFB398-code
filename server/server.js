@@ -21,9 +21,222 @@ const db = new Database(dbPath);
 
 console.log("Connected to SQLite database");
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS schedule_activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    activity_date TEXT NOT NULL,
+    start_time TEXT,
+    end_time TEXT,
+    time_label TEXT NOT NULL,
+    meta TEXT,
+    position TEXT,
+    capacity TEXT,
+    badge TEXT,
+    time_type TEXT,
+    repeat_setting TEXT,
+    reason TEXT,
+    prevent_bookings INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+const activityCount = db
+  .prepare("SELECT COUNT(*) AS count FROM schedule_activities")
+  .get().count;
+
+if (activityCount === 0) {
+  const today = new Date();
+  const monday = new Date(today);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const dateKey = (offset) => {
+    const date = new Date(monday);
+    date.setDate(date.getDate() + offset);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  const samples = [
+    ["class", "Gentle Yoga", 0, "09:00", "10:00", "9:00–10:00", "Studio A", "morning", null, null],
+    ["recurring", "Balance Basics", 1, "10:30", "11:30", "10:30–11:30", "Studio B", "lateMorning", null, null],
+    ["series", "Strong Start", 2, "09:00", "10:00", "9:00–10:00", "Event Series · Studio A", "morning", "3 of 6", null],
+    ["appointment", "Jane Wilson", 3, "13:30", "14:15", "1:30–2:15", "Appointment · Room 2", "afternoon", null, null],
+    ["class", "Gentle Yoga", 4, "09:00", "10:00", "9:00–10:00", "Studio A", "morning", null, null],
+    ["recurring", "Core & Calm", 5, "12:00", "13:00", "12:00–1:00", "Recurring · Studio B", "midday", null, null],
+    ["blocked", "Blocked time", 6, "14:00", "16:00", "2:00–4:00", "Admin work", "lateAfternoon", null, "No bookings"],
+  ];
+  const insertSample = db.prepare(`
+    INSERT INTO schedule_activities (
+      type, title, activity_date, start_time, end_time, time_label,
+      meta, position, capacity, badge, time_type, repeat_setting,
+      reason, prevent_bookings
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const seedSchedule = db.transaction(() => {
+    for (const sample of samples) {
+      const [type, title, offset, startTime, endTime, timeLabel, meta, position, capacity, badge] = sample;
+      insertSample.run(
+        type,
+        title,
+        dateKey(offset),
+        startTime,
+        endTime,
+        timeLabel,
+        meta,
+        position,
+        capacity,
+        badge,
+        type === "blocked" ? "Administration work" : null,
+        type === "blocked" ? "Does not repeat" : null,
+        type === "blocked" ? meta : null,
+        type === "blocked" ? 1 : 0,
+      );
+    }
+  });
+  seedSchedule();
+}
+
+const activityFromRow = (row) => ({
+  id: row.id,
+  type: row.type,
+  title: row.title,
+  date: row.activity_date,
+  startTime: row.start_time,
+  endTime: row.end_time,
+  time: row.time_label,
+  meta: row.meta || "",
+  position: row.position || "morning",
+  capacity: row.capacity || undefined,
+  badge: row.badge || undefined,
+  timeType: row.time_type || undefined,
+  repeat: row.repeat_setting || undefined,
+  reason: row.reason || "",
+  preventBookings: Boolean(row.prevent_bookings),
+});
+
+const activityValues = (body) => [
+  body.type,
+  body.title,
+  body.date,
+  body.startTime || null,
+  body.endTime || null,
+  body.time,
+  body.meta || null,
+  body.position || null,
+  body.capacity || null,
+  body.badge || null,
+  body.timeType || null,
+  body.repeat || null,
+  body.reason || null,
+  body.preventBookings ? 1 : 0,
+];
+
 // Test route
 app.get("/", (req, res) => {
   res.send("Strong & Steady API is running");
+});
+
+app.get("/api/activities", (req, res) => {
+  try {
+    const rows = db
+      .prepare("SELECT * FROM schedule_activities ORDER BY activity_date, start_time")
+      .all();
+    res.json(rows.map(activityFromRow));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to load activities" });
+  }
+});
+
+app.post("/api/activities", (req, res) => {
+  try {
+    if (!req.body.type || !req.body.title || !req.body.date || !req.body.time) {
+      return res.status(400).json({
+        error: "Type, title, date and time are required",
+      });
+    }
+    const result = db.prepare(`
+      INSERT INTO schedule_activities (
+        type, title, activity_date, start_time, end_time, time_label,
+        meta, position, capacity, badge, time_type, repeat_setting,
+        reason, prevent_bookings
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(...activityValues(req.body));
+    const row = db
+      .prepare("SELECT * FROM schedule_activities WHERE id = ?")
+      .get(result.lastInsertRowid);
+    res.status(201).json(activityFromRow(row));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to create activity" });
+  }
+});
+
+app.put("/api/activities/:id", (req, res) => {
+  try {
+    if (!req.body.type || !req.body.title || !req.body.date || !req.body.time) {
+      return res.status(400).json({
+        error: "Type, title, date and time are required",
+      });
+    }
+    const result = db.prepare(`
+      UPDATE schedule_activities SET
+        type = ?, title = ?, activity_date = ?, start_time = ?,
+        end_time = ?, time_label = ?, meta = ?, position = ?, capacity = ?,
+        badge = ?, time_type = ?, repeat_setting = ?, reason = ?,
+        prevent_bookings = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(...activityValues(req.body), req.params.id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Activity not found" });
+    }
+    const row = db
+      .prepare("SELECT * FROM schedule_activities WHERE id = ?")
+      .get(req.params.id);
+    res.json(activityFromRow(row));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to update activity" });
+  }
+});
+
+app.patch("/api/activities/:id/date", (req, res) => {
+  try {
+    if (!req.body.date) {
+      return res.status(400).json({ error: "Date is required" });
+    }
+    const result = db.prepare(`
+      UPDATE schedule_activities
+      SET activity_date = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(req.body.date, req.params.id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Activity not found" });
+    }
+    const row = db
+      .prepare("SELECT * FROM schedule_activities WHERE id = ?")
+      .get(req.params.id);
+    res.json(activityFromRow(row));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to move activity" });
+  }
+});
+
+app.delete("/api/activities/:id", (req, res) => {
+  try {
+    const result = db
+      .prepare("DELETE FROM schedule_activities WHERE id = ?")
+      .run(req.params.id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Activity not found" });
+    }
+    res.status(204).end();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to cancel activity" });
+  }
 });
 
 // Get all clients

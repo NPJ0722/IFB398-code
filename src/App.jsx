@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Intake from "./pages/Intake";
 import {
   CalendarDays,
@@ -77,6 +77,12 @@ const formatRange = (start) => {
   return start.getMonth() === end.getMonth()
     ? `${MONTHS[start.getMonth()]} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`
     : `${MONTHS[start.getMonth()]} ${start.getDate()} – ${MONTHS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
+};
+const ACTIVITIES_API = "http://localhost:3001/api/activities";
+const readApiResponse = async (response) => {
+  if (response.ok) return response.status === 204 ? null : response.json();
+  const data = await response.json().catch(() => ({}));
+  throw new Error(data.error || "The schedule database request failed.");
 };
 
 function Sidebar({ page, go }) {
@@ -577,6 +583,23 @@ export default function App() {
         : {}),
     })),
   );
+  useEffect(() => {
+    let active = true;
+    fetch(ACTIVITIES_API)
+      .then(readApiResponse)
+      .then((savedActivities) => {
+        if (active) setActivities(savedActivities);
+      })
+      .catch((error) => {
+        console.error("Failed to load schedule activities:", error);
+        if (active) {
+          setNotice("Could not connect to the schedule database. Showing demo data.");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const go = (p) => {
     console.log("Going to page:", p);
     setPage(p);
@@ -626,9 +649,8 @@ export default function App() {
     newClient
   ]);
 };
-const saveScheduledActivity = (form) => {
+const saveScheduledActivity = async (form) => {
   const activity = {
-    id: `${form.type}-${Date.now()}`,
     type: form.type,
     title: form.title,
     date: form.date,
@@ -641,15 +663,27 @@ const saveScheduledActivity = (form) => {
         : form.location || "Location not set",
     position: positionFromTime(form.startTime),
   };
-  setActivities((current) => [...current, activity]);
-  setNotice(
-    form.type === "appointment"
-      ? "Appointment created."
-      : "Single class created.",
-  );
+  try {
+    const saved = await readApiResponse(
+      await fetch(ACTIVITIES_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(activity),
+      }),
+    );
+    setActivities((current) => [...current, saved]);
+    setNotice(
+      form.type === "appointment"
+        ? "Appointment created."
+        : "Single class created.",
+    );
+  } catch (error) {
+    console.error(error);
+    setNotice("Activity could not be saved to the database.");
+  }
 };
 
-const saveBlockedTime = (form) => {
+const saveBlockedTime = async (form) => {
   const createBlocked = (date, id) => ({
     id,
     type: "blocked",
@@ -668,14 +702,25 @@ const saveBlockedTime = (form) => {
   });
 
   if (form.id) {
-    setActivities((current) =>
-      current.map((activity) =>
-        activity.id === form.id
-          ? createBlocked(form.date, activity.id)
-          : activity,
-      ),
-    );
-    setNotice("Blocked time updated.");
+    try {
+      const updated = createBlocked(form.date, form.id);
+      const saved = await readApiResponse(
+        await fetch(`${ACTIVITIES_API}/${form.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updated),
+        }),
+      );
+      setActivities((current) =>
+        current.map((activity) =>
+          activity.id === form.id ? saved : activity,
+        ),
+      );
+      setNotice("Blocked time updated.");
+    } catch (error) {
+      console.error(error);
+      setNotice("Blocked time could not be updated in the database.");
+    }
   } else {
     const blocks = [];
     let date = new Date(`${form.date}T00:00:00`);
@@ -688,12 +733,26 @@ const saveBlockedTime = (form) => {
       date = addDays(date, 1);
       index += 1;
     }
-    setActivities((current) => [...current, ...blocks]);
-    setNotice(
-      blocks.length === 1
-        ? "Blocked time created."
-        : `${blocks.length} blocked times created.`,
-    );
+    try {
+      const savedBlocks = await Promise.all(
+        blocks.map((block) =>
+          fetch(ACTIVITIES_API, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(block),
+          }).then(readApiResponse),
+        ),
+      );
+      setActivities((current) => [...current, ...savedBlocks]);
+      setNotice(
+        savedBlocks.length === 1
+          ? "Blocked time created."
+          : `${savedBlocks.length} blocked times created.`,
+      );
+    } catch (error) {
+      console.error(error);
+      setNotice("Blocked time could not be saved to the database.");
+    }
   }
   setEditingBlocked(null);
 };
@@ -702,33 +761,61 @@ const editBlocked = (activity) => {
   setEditingBlocked(activity);
   go("block-time");
 };
-const cancelBlocked = (id) => {
-  setActivities((current) =>
-    current.filter((activity) => activity.id !== id),
-  );
-  setNotice("Blocked time cancelled.");
+const deleteActivity = async (id, successMessage) => {
+  try {
+    await readApiResponse(
+      await fetch(`${ACTIVITIES_API}/${id}`, { method: "DELETE" }),
+    );
+    setActivities((current) =>
+      current.filter((activity) => activity.id !== id),
+    );
+    setNotice(successMessage);
+  } catch (error) {
+    console.error(error);
+    setNotice("Activity could not be removed from the database.");
+  }
 };
-const updateActivity = (updated) => {
-  setActivities((current) =>
-    current.map((activity) =>
-      activity.id === updated.id ? updated : activity,
-    ),
-  );
-  setNotice("Activity updated.");
+const cancelBlocked = (id) => deleteActivity(id, "Blocked time cancelled.");
+const updateActivity = async (updated) => {
+  try {
+    const saved = await readApiResponse(
+      await fetch(`${ACTIVITIES_API}/${updated.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated),
+      }),
+    );
+    setActivities((current) =>
+      current.map((activity) =>
+        activity.id === saved.id ? saved : activity,
+      ),
+    );
+    setNotice("Activity updated.");
+  } catch (error) {
+    console.error(error);
+    setNotice("Activity could not be updated in the database.");
+  }
 };
-const cancelActivity = (id) => {
-  setActivities((current) =>
-    current.filter((activity) => activity.id !== id),
-  );
-  setNotice("Activity cancelled.");
-};
-const moveActivity = (id, date) => {
-  setActivities((current) =>
-    current.map((activity) =>
-      String(activity.id) === String(id) ? { ...activity, date } : activity,
-    ),
-  );
-  setNotice("Activity moved.");
+const cancelActivity = (id) => deleteActivity(id, "Activity cancelled.");
+const moveActivity = async (id, date) => {
+  try {
+    const saved = await readApiResponse(
+      await fetch(`${ACTIVITIES_API}/${id}/date`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date }),
+      }),
+    );
+    setActivities((current) =>
+      current.map((activity) =>
+        String(activity.id) === String(id) ? saved : activity,
+      ),
+    );
+    setNotice("Activity moved.");
+  } catch (error) {
+    console.error(error);
+    setNotice("Activity could not be moved in the database.");
+  }
 };
 let view;
 if (page === "schedule")
