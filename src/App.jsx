@@ -498,50 +498,95 @@ function Complete({ go, onComplete }) {
   );
 }
 function ClientProfile({ go, client }) {
-  if (!client) return <Page title="Client profile" subtitle="No client selected."><button className="back-link" onClick={() => go("clients")}>‹ Clients</button></Page>;
-  const fullName = `${client.firstName || ""} ${client.lastName || ""}`.trim();
-  const initials = `${client.firstName?.[0] || ""}${client.lastName?.[0] || ""}`.toUpperCase();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(Boolean(client?.id));
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!client?.id) return;
+    setLoading(true);
+    setError("");
+    fetch(`http://localhost:3001/api/clients/${client.id}`)
+      .then(readApiResponse)
+      .then((data) => setProfile(data))
+      .catch((err) => {
+        console.error("Failed to load client profile:", err);
+        setError("Could not load this client profile.");
+      })
+      .finally(() => setLoading(false));
+  }, [client?.id]);
+
+  if (!client) {
+    return (
+      <Page title="Client profile" subtitle="No client selected.">
+        <button className="back-link" onClick={() => go("clients")}>‹ Clients</button>
+      </Page>
+    );
+  }
+
+  const data = profile || client;
+  const intake = profile?.intake;
+  const firstName = data.first_name ?? data.firstName ?? "";
+  const lastName = data.last_name ?? data.lastName ?? "";
+  const fullName = `${firstName} ${lastName}`.trim();
+  const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase();
+  const value = (v, fallback = "Not provided") => v || fallback;
+  const formatDate = (date) => {
+    if (!date) return "Not provided";
+    const parsed = new Date(`${date}T00:00:00`);
+    return Number.isNaN(parsed.getTime())
+      ? date
+      : new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", year: "numeric" }).format(parsed);
+  };
+
   return (
     <Page title={fullName} subtitle="Client profile and registration record.">
-      <button className="back-link" onClick={() => go("clients")}>
-        ‹ Clients
-      </button>
+      <button className="back-link" onClick={() => go("clients")}>‹ Clients</button>
+      {loading && <p>Loading client profile…</p>}
+      {error && <p className="form-error">{error}</p>}
       <div className="profile-layout">
         <section className="form-card">
           <div className="profile-heading">
             <div className="large-avatar">{initials}</div>
             <div>
               <h2>{fullName}</h2>
-              <p>{client.email}{client.phone ? ` · ${client.phone}` : ""}</p>
+              <p>{value(data.email)}{data.phone ? ` · ${data.phone}` : ""}</p>
             </div>
-            <span className="status-pill">Active</span>
+            <span className="status-pill">{value(data.membership, "Client")}</span>
           </div>
+
           <h2>Personal information</h2>
-          <Summary />
+          <dl className="summary-list">
+            <dt>Full name</dt><dd>{fullName}</dd>
+            <dt>Email address</dt><dd>{value(data.email)}</dd>
+            <dt>Phone number</dt><dd>{value(data.phone)}</dd>
+            <dt>Date of birth</dt><dd>{formatDate(data.date_of_birth)}</dd>
+            <dt>Gender</dt><dd>{value(data.gender)}</dd>
+            <dt>Experience level</dt><dd>{value(intake?.experience_level)}</dd>
+            <dt>Years of practice</dt><dd>{value(intake?.years_of_practice)}</dd>
+          </dl>
+
           <h2>Safety information</h2>
           <dl className="summary-list">
             <dt>Injuries / limitations</dt>
-            <dd>None reported</dd>
+            <dd>{intake?.has_injury === "No" ? "None reported" : value(intake?.injury_details)}</dd>
             <dt>Accessibility requirements</dt>
-            <dd>None reported</dd>
+            <dd>{value(intake?.accessibility_requirements, "None reported")}</dd>
             <dt>Medical care</dt>
-            <dd>No</dd>
+            <dd>{value(intake?.medical_care, "No")}</dd>
+            <dt>Medication</dt>
+            <dd>{intake?.taking_medication === "No" ? "No" : value(intake?.medication_details, intake?.taking_medication || "Not provided")}</dd>
           </dl>
         </section>
+
         <aside className="progress-panel">
-          <h3>Registration complete</h3>
-          <p>✓ Intake form completed</p>
-          <p>✓ Eligibility confirmed</p>
-          <p>✓ Waiver signed</p>
+          <h3>{intake ? "Registration details" : "Client record"}</h3>
+          <p>{intake ? "✓ Intake form completed" : "○ Intake form not completed"}</p>
+          <p>Membership: {value(data.membership, "New client")}</p>
+          <p>Last activity: {value(data.last_activity, "No activity")}</p>
           <button
             className="secondary-button"
-            onClick={() =>
-              window.open(
-                `${import.meta.env.BASE_URL}forms/yoga-therapy-intake-form.pdf`,
-                "_blank",
-                "noopener,noreferrer",
-              )
-            }
+            onClick={() => window.open(`${import.meta.env.BASE_URL}forms/yoga-therapy-intake-form.pdf`, "_blank", "noopener,noreferrer")}
           >
             <Eye size={16} /> View intake form
           </button>
