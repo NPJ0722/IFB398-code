@@ -497,19 +497,22 @@ function Complete({ go, onComplete }) {
     </Reg>
   );
 }
-function ClientProfile({ go }) {
+function ClientProfile({ go, client }) {
+  if (!client) return <Page title="Client profile" subtitle="No client selected."><button className="back-link" onClick={() => go("clients")}>‹ Clients</button></Page>;
+  const fullName = `${client.firstName || ""} ${client.lastName || ""}`.trim();
+  const initials = `${client.firstName?.[0] || ""}${client.lastName?.[0] || ""}`.toUpperCase();
   return (
-    <Page title="Mia Chen" subtitle="Client profile and registration record.">
+    <Page title={fullName} subtitle="Client profile and registration record.">
       <button className="back-link" onClick={() => go("clients")}>
         ‹ Clients
       </button>
       <div className="profile-layout">
         <section className="form-card">
           <div className="profile-heading">
-            <div className="large-avatar">MC</div>
+            <div className="large-avatar">{initials}</div>
             <div>
-              <h2>Mia Chen</h2>
-              <p>mia.chen@email.com · 0412 345 678</p>
+              <h2>{fullName}</h2>
+              <p>{client.email}{client.phone ? ` · ${client.phone}` : ""}</p>
             </div>
             <span className="status-pill">Active</span>
           </div>
@@ -833,7 +836,7 @@ if (page === "schedule")
     />
   );
 else if (page === "clients")
-  view = <Clients go={go} Page={Page} clients={clients} />;
+  view = <Clients go={go} Page={Page} clients={clients} onSelectClient={setCurrentClient} />;
 else if (page === "series") view = <Series go={go} />;
 else if (page === "appointments")
   view = (
@@ -899,7 +902,7 @@ else if (page === "complete")
       onComplete={saveClientToDatabase}
     />
   );
-else view = <ClientProfile go={go} />;
+else view = <ClientProfile go={go} client={currentClient} />;
 return (
   <div className="app-shell">
     <Sidebar page={page} go={go} />
