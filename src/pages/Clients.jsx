@@ -10,7 +10,7 @@ function Stat({ label, value }) {
   );
 }
 
-export default function Clients({ go, Page }) {
+export default function Clients({ go, Page, onSelectClient }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [clients, setClients] = useState([]);
 
@@ -86,7 +86,7 @@ export default function Clients({ go, Page }) {
           <button
             className="table-row"
             key={client.id}
-            onClick={() => go("client-profile")}
+            onClick={() => { onSelectClient(client); go("client-profile"); }}
           >
             <span>
               {client.firstName} {client.lastName}

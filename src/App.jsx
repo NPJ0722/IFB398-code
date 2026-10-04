@@ -497,53 +497,158 @@ function Complete({ go, onComplete }) {
     </Reg>
   );
 }
-function ClientProfile({ go }) {
+function ClientProfile({ go, client }) {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(Boolean(client?.id));
+  const [error, setError] = useState("");
+  const [showIntake, setShowIntake] = useState(false);
+
+  useEffect(() => {
+    if (!client?.id) return;
+    setLoading(true);
+    setError("");
+    fetch(`http://localhost:3001/api/clients/${client.id}`)
+      .then(readApiResponse)
+      .then((data) => setProfile(data))
+      .catch((err) => {
+        console.error("Failed to load client profile:", err);
+        setError("Could not load this client profile.");
+      })
+      .finally(() => setLoading(false));
+  }, [client?.id]);
+
+  if (!client) {
+    return (
+      <Page title="Client profile" subtitle="No client selected.">
+        <button className="back-link" onClick={() => go("clients")}>‹ Clients</button>
+      </Page>
+    );
+  }
+
+  const data = profile || client;
+  const intake = profile?.intake;
+  const firstName = data.first_name ?? data.firstName ?? "";
+  const lastName = data.last_name ?? data.lastName ?? "";
+  const fullName = `${firstName} ${lastName}`.trim();
+  const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase();
+  const value = (v, fallback = "Not provided") => v || fallback;
+  const formatStoredList = (stored) => {
+    if (!stored) return "Not provided";
+    try {
+      const parsed = typeof stored === "string" ? JSON.parse(stored) : stored;
+      return Array.isArray(parsed) && parsed.length ? parsed.join(", ") : "Not provided";
+    } catch {
+      return stored;
+    }
+  };
+  const formatDate = (date) => {
+    if (!date) return "Not provided";
+    const parsed = new Date(`${date}T00:00:00`);
+    return Number.isNaN(parsed.getTime())
+      ? date
+      : new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", year: "numeric" }).format(parsed);
+  };
+
   return (
-    <Page title="Mia Chen" subtitle="Client profile and registration record.">
-      <button className="back-link" onClick={() => go("clients")}>
-        ‹ Clients
-      </button>
+    <Page title={fullName} subtitle="Client profile and registration record.">
+      <button className="back-link" onClick={() => go("clients")}>‹ Clients</button>
+      {loading && <p>Loading client profile…</p>}
+      {error && <p className="form-error">{error}</p>}
       <div className="profile-layout">
         <section className="form-card">
           <div className="profile-heading">
-            <div className="large-avatar">MC</div>
+            <div className="large-avatar">{initials}</div>
             <div>
-              <h2>Mia Chen</h2>
-              <p>mia.chen@email.com · 0412 345 678</p>
+              <h2>{fullName}</h2>
+              <p>{value(data.email)}{data.phone ? ` · ${data.phone}` : ""}</p>
             </div>
-            <span className="status-pill">Active</span>
+            <span className="status-pill">{value(data.membership, "Client")}</span>
           </div>
+
           <h2>Personal information</h2>
-          <Summary />
+          <dl className="summary-list">
+            <dt>Full name</dt><dd>{fullName}</dd>
+            <dt>Email address</dt><dd>{value(data.email)}</dd>
+            <dt>Phone number</dt><dd>{value(data.phone)}</dd>
+            <dt>Date of birth</dt><dd>{formatDate(data.date_of_birth)}</dd>
+            <dt>Gender</dt><dd>{value(data.gender)}</dd>
+            <dt>Experience level</dt><dd>{value(intake?.experience_level)}</dd>
+            <dt>Years of practice</dt><dd>{value(intake?.years_of_practice)}</dd>
+          </dl>
+
           <h2>Safety information</h2>
           <dl className="summary-list">
             <dt>Injuries / limitations</dt>
-            <dd>None reported</dd>
+            <dd>{intake?.has_injury === "No" ? "None reported" : value(intake?.injury_details)}</dd>
             <dt>Accessibility requirements</dt>
-            <dd>None reported</dd>
+            <dd>{value(intake?.accessibility_requirements, "None reported")}</dd>
             <dt>Medical care</dt>
-            <dd>No</dd>
+            <dd>{value(intake?.medical_care, "No")}</dd>
+            <dt>Medication</dt>
+            <dd>{intake?.taking_medication === "No" ? "No" : value(intake?.medication_details, intake?.taking_medication || "Not provided")}</dd>
           </dl>
         </section>
+
         <aside className="progress-panel">
-          <h3>Registration complete</h3>
-          <p>✓ Intake form completed</p>
-          <p>✓ Eligibility confirmed</p>
-          <p>✓ Waiver signed</p>
+          <h3>{intake ? "Registration details" : "Client record"}</h3>
+          <p>{intake ? "✓ Intake form completed" : "○ Intake form not completed"}</p>
+          <p>Membership: {value(data.membership, "New client")}</p>
+          <p>Last activity: {value(data.last_activity, "No activity")}</p>
           <button
             className="secondary-button"
-            onClick={() =>
-              window.open(
-                `${import.meta.env.BASE_URL}forms/yoga-therapy-intake-form.pdf`,
-                "_blank",
-                "noopener,noreferrer",
-              )
-            }
+            disabled={!intake}
+            onClick={() => setShowIntake(true)}
           >
             <Eye size={16} /> View intake form
           </button>
         </aside>
       </div>
+
+      {showIntake && intake && (
+        <div className="drawer-backdrop" onMouseDown={() => setShowIntake(false)}>
+          <aside className="details-drawer" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="drawer-title">
+              <div>
+                <h2>Intake form</h2>
+                <p>{fullName}</p>
+              </div>
+              <button onClick={() => setShowIntake(false)} aria-label="Close"><X /></button>
+            </div>
+
+            <h4>Yoga experience</h4>
+            <dl className="detail-list">
+              <dt>Experience level</dt><dd>{value(intake.experience_level)}</dd>
+              <dt>Years of practice</dt><dd>{value(intake.years_of_practice)}</dd>
+              <dt>Previous experience</dt><dd>{value(intake.previous_experience)}</dd>
+              <dt>Had yoga therapy</dt><dd>{value(intake.had_yoga_therapy)}</dd>
+              <dt>Last yoga therapy session</dt><dd>{value(intake.last_yoga_therapy_session)}</dd>
+              <dt>Yoga therapy frequency</dt><dd>{value(intake.yoga_therapy_frequency)}</dd>
+              <dt>Yoga styles</dt><dd>{formatStoredList(intake.yoga_styles)}</dd>
+            </dl>
+
+            <h4>Goals and wellbeing</h4>
+            <dl className="detail-list">
+              <dt>Goals / reasons</dt><dd>{formatStoredList(intake.goals)}</dd>
+              <dt>Other goals</dt><dd>{value(intake.other_goals)}</dd>
+              <dt>Yoga interests</dt><dd>{formatStoredList(intake.yoga_interests)}</dd>
+              <dt>Activity level</dt><dd>{value(intake.activity_level)}</dd>
+              <dt>Stress level</dt><dd>{value(intake.stress_level)}</dd>
+            </dl>
+
+            <h4>Health and safety</h4>
+            <dl className="detail-list">
+              <dt>Has injury</dt><dd>{value(intake.has_injury)}</dd>
+              <dt>Injury details</dt><dd>{value(intake.injury_details, "None reported")}</dd>
+              <dt>Health conditions</dt><dd>{formatStoredList(intake.health_conditions)}</dd>
+              <dt>Taking medication</dt><dd>{value(intake.taking_medication)}</dd>
+              <dt>Medication details</dt><dd>{value(intake.medication_details, "None reported")}</dd>
+              <dt>Accessibility requirements</dt><dd>{value(intake.accessibility_requirements, "None reported")}</dd>
+              <dt>Medical care</dt><dd>{value(intake.medical_care, "No")}</dd>
+              <dt>Additional information</dt><dd>{value(intake.additional_info)}</dd>
+            </dl>
+          </aside>
+        </div>
+      )}
     </Page>
   );
 }
@@ -833,7 +938,7 @@ if (page === "schedule")
     />
   );
 else if (page === "clients")
-  view = <Clients go={go} Page={Page} clients={clients} />;
+  view = <Clients go={go} Page={Page} clients={clients} onSelectClient={setCurrentClient} />;
 else if (page === "series") view = <Series go={go} />;
 else if (page === "appointments")
   view = (
@@ -899,7 +1004,7 @@ else if (page === "complete")
       onComplete={saveClientToDatabase}
     />
   );
-else view = <ClientProfile go={go} />;
+else view = <ClientProfile go={go} client={currentClient} />;
 return (
   <div className="app-shell">
     <Sidebar page={page} go={go} />
