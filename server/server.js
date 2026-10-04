@@ -256,6 +256,24 @@ app.get("/api/clients", (req, res) => {
   }
 });
 
+
+// Get one client with intake details
+app.get("/api/clients/:id", (req, res) => {
+  try {
+    const client = db.prepare("SELECT * FROM clients WHERE id = ?").get(req.params.id);
+    if (!client) return res.status(404).json({ error: "Client not found" });
+
+    const intake = db
+      .prepare("SELECT * FROM client_intakes WHERE client_id = ?")
+      .get(req.params.id);
+
+    res.json({ ...client, intake: intake || null });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to load client profile" });
+  }
+});
+
 // Add a new client
 app.post("/api/clients", (req, res) => {
   try {
