@@ -501,6 +501,7 @@ function ClientProfile({ go, client }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(Boolean(client?.id));
   const [error, setError] = useState("");
+  const [showIntake, setShowIntake] = useState(false);
 
   useEffect(() => {
     if (!client?.id) return;
@@ -531,6 +532,15 @@ function ClientProfile({ go, client }) {
   const fullName = `${firstName} ${lastName}`.trim();
   const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase();
   const value = (v, fallback = "Not provided") => v || fallback;
+  const formatStoredList = (stored) => {
+    if (!stored) return "Not provided";
+    try {
+      const parsed = typeof stored === "string" ? JSON.parse(stored) : stored;
+      return Array.isArray(parsed) && parsed.length ? parsed.join(", ") : "Not provided";
+    } catch {
+      return stored;
+    }
+  };
   const formatDate = (date) => {
     if (!date) return "Not provided";
     const parsed = new Date(`${date}T00:00:00`);
@@ -586,12 +596,59 @@ function ClientProfile({ go, client }) {
           <p>Last activity: {value(data.last_activity, "No activity")}</p>
           <button
             className="secondary-button"
-            onClick={() => window.open(`${import.meta.env.BASE_URL}forms/yoga-therapy-intake-form.pdf`, "_blank", "noopener,noreferrer")}
+            disabled={!intake}
+            onClick={() => setShowIntake(true)}
           >
             <Eye size={16} /> View intake form
           </button>
         </aside>
       </div>
+
+      {showIntake && intake && (
+        <div className="drawer-backdrop" onMouseDown={() => setShowIntake(false)}>
+          <aside className="details-drawer" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="drawer-title">
+              <div>
+                <h2>Intake form</h2>
+                <p>{fullName}</p>
+              </div>
+              <button onClick={() => setShowIntake(false)} aria-label="Close"><X /></button>
+            </div>
+
+            <h4>Yoga experience</h4>
+            <dl className="detail-list">
+              <dt>Experience level</dt><dd>{value(intake.experience_level)}</dd>
+              <dt>Years of practice</dt><dd>{value(intake.years_of_practice)}</dd>
+              <dt>Previous experience</dt><dd>{value(intake.previous_experience)}</dd>
+              <dt>Had yoga therapy</dt><dd>{value(intake.had_yoga_therapy)}</dd>
+              <dt>Last yoga therapy session</dt><dd>{value(intake.last_yoga_therapy_session)}</dd>
+              <dt>Yoga therapy frequency</dt><dd>{value(intake.yoga_therapy_frequency)}</dd>
+              <dt>Yoga styles</dt><dd>{formatStoredList(intake.yoga_styles)}</dd>
+            </dl>
+
+            <h4>Goals and wellbeing</h4>
+            <dl className="detail-list">
+              <dt>Goals / reasons</dt><dd>{formatStoredList(intake.goals)}</dd>
+              <dt>Other goals</dt><dd>{value(intake.other_goals)}</dd>
+              <dt>Yoga interests</dt><dd>{formatStoredList(intake.yoga_interests)}</dd>
+              <dt>Activity level</dt><dd>{value(intake.activity_level)}</dd>
+              <dt>Stress level</dt><dd>{value(intake.stress_level)}</dd>
+            </dl>
+
+            <h4>Health and safety</h4>
+            <dl className="detail-list">
+              <dt>Has injury</dt><dd>{value(intake.has_injury)}</dd>
+              <dt>Injury details</dt><dd>{value(intake.injury_details, "None reported")}</dd>
+              <dt>Health conditions</dt><dd>{formatStoredList(intake.health_conditions)}</dd>
+              <dt>Taking medication</dt><dd>{value(intake.taking_medication)}</dd>
+              <dt>Medication details</dt><dd>{value(intake.medication_details, "None reported")}</dd>
+              <dt>Accessibility requirements</dt><dd>{value(intake.accessibility_requirements, "None reported")}</dd>
+              <dt>Medical care</dt><dd>{value(intake.medical_care, "No")}</dd>
+              <dt>Additional information</dt><dd>{value(intake.additional_info)}</dd>
+            </dl>
+          </aside>
+        </div>
+      )}
     </Page>
   );
 }
