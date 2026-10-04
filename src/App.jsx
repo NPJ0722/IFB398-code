@@ -20,7 +20,6 @@ import {
 } from "./data/schedule";
 import Clients from "./pages/Clients";
 import AddClient from "./pages/AddClient";
-import { initialClients } from "./data/clients";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const MONTHS = [
@@ -58,6 +57,7 @@ const startOfWeek = (date) => {
 const toDateKey = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const formatClock = (value) => {
+  if (!value) return "";
   const [hours, minutes] = value.split(":").map(Number);
   return new Intl.DateTimeFormat("en-AU", {
     hour: "numeric",
@@ -79,11 +79,34 @@ const formatRange = (start) => {
     : `${MONTHS[start.getMonth()]} ${start.getDate()} – ${MONTHS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
 };
 const ACTIVITIES_API = "http://localhost:3001/api/activities";
+const CLIENTS_API = "http://localhost:3001/api/clients";
+const APPOINTMENT_TYPES = [
+  "Private Yoga",
+  "Yoga Therapy",
+  "Initial Consultation",
+  "Follow-up",
+];
+
 const readApiResponse = async (response) => {
   if (response.ok) return response.status === 204 ? null : response.json();
   const data = await response.json().catch(() => ({}));
   throw new Error(data.error || "The schedule database request failed.");
 };
+
+const clientDisplayName = (client) =>
+  `${client.firstName ?? client.first_name ?? ""} ${client.lastName ?? client.last_name ?? ""}`.trim();
+
+const findAppointmentConflict = (activities, candidate, excludeId = null) =>
+  activities.find((activity) => {
+    if (excludeId !== null && String(activity.id) === String(excludeId)) return false;
+    if (activity.date !== candidate.date) return false;
+    if (!activity.startTime || !activity.endTime) return false;
+    if (activity.type === "blocked" && activity.preventBookings === false) return false;
+    return candidate.startTime < activity.endTime && candidate.endTime > activity.startTime;
+  });
+
+const conflictMessage = (conflict) =>
+  `This appointment conflicts with ${conflict.title} (${formatClock(conflict.startTime)}–${formatClock(conflict.endTime)}). Please choose another time.`;
 
 function Sidebar({ page, go }) {
   return (
@@ -164,18 +187,418 @@ function Page({ title, subtitle, action, onAction, children }) {
 
 function ActivityCard({ a, onClick, onDragStart, onDragEnd }) { return <button className={`activity-card ${a.type} ${a.position}`} onClick={onClick} draggable onDragStart={event => onDragStart(event, a)} onDragEnd={onDragEnd}><strong>{a.title}</strong><span>{a.time}</span><small>{a.meta}</small>{a.capacity && <em>{a.capacity}</em>}{a.badge && <em>{a.badge}</em>}</button> }
 function CreateMenu({ close, go }) { const rows = [['Single class', 'Add a one-time class', () => go('create-class')], ['Event series', 'Add a fixed series of sessions', () => go('create-series')], ['Appointment', 'Book a private client session', () => go('create-appointment')], ['Block time', 'Prevent client bookings', () => go('block-time')]]; return <div className="modal-backdrop" onMouseDown={close}><section className="activity-modal" onMouseDown={e => e.stopPropagation()}><div className="modal-heading"><div><h2>Create activity</h2><p>Choose what you want to add.</p></div><button className="icon-button" onClick={close}><X size={18} /></button></div><div className="activity-options">{rows.map(([t, d, fn]) => <button key={t} onClick={fn}><span><strong>{t}</strong><small>{d}</small></span><ChevronRight size={17} /></button>)}</div></section></div> }
-function ActivityDetails({ activity, close, onSave, onCancel }) { const [editing, setEditing] = useState(false); const [draft, setDraft] = useState(() => ({ title: activity.title, date: activity.date, time: activity.time, meta: activity.meta || '' })); const [error, setError] = useState(''); const date = new Date(`${activity.date}T00:00:00`); const formattedDate = new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date); const typeLabel = activityTypes[activity.type]?.label || 'Activity'; const save = event => { event.preventDefault(); if (!draft.title.trim() || !draft.date || !draft.time.trim()) { setError('Title, date and time are required.'); return } onSave({ ...activity, ...draft, title: draft.title.trim(), time: draft.time.trim(), meta: draft.meta.trim() }); close() }; return <div className="drawer-backdrop" onMouseDown={close}><aside className="details-drawer" onMouseDown={event => event.stopPropagation()}><div className="drawer-title"><h2>{editing ? 'Edit activity' : 'Activity details'}</h2><button onClick={close} aria-label="Close"><X /></button></div>{editing ? <form className="activity-edit-form" onSubmit={save} noValidate><Field label="Title *"><input value={draft.title} onChange={event => { setDraft(current => ({ ...current, title: event.target.value })); setError('') }} /></Field><Field label="Date *"><input type="date" value={draft.date} onChange={event => { setDraft(current => ({ ...current, date: event.target.value })); setError('') }} /></Field><Field label="Time *"><input value={draft.time} onChange={event => { setDraft(current => ({ ...current, time: event.target.value })); setError('') }} placeholder="e.g. 9:00–10:00" /></Field><Field label={activity.type === 'appointment' ? 'Appointment details' : 'Location / details'}><input value={draft.meta} onChange={event => setDraft(current => ({ ...current, meta: event.target.value }))} /></Field>{error && <p className="form-error" role="alert">{error}</p>}<div className="blocked-actions"><button type="button" className="secondary-button" onClick={() => setEditing(false)}>Back</button><button type="submit" className="primary-button">Save changes</button></div></form> : <><span className={`activity-detail-badge ${activity.type}`}>{typeLabel.toUpperCase()}</span><h3>{activity.title}</h3><p>{activity.meta || 'No additional details.'}</p>{activity.type === 'series' && <div className="progress-card"><small>SERIES PROGRESS</small><strong>Session {activity.capacity || '3 of 6'}</strong><div className="progress"><i style={{ width: '50%' }} /></div></div>}<h4>Activity information</h4><dl className="detail-list"><dt>Date</dt><dd>{formattedDate}</dd><dt>Time</dt><dd>{activity.time}</dd><dt>Type</dt><dd>{typeLabel}</dd><dt>Location / details</dt><dd>{activity.meta || '—'}</dd>{activity.capacity && <><dt>Progress</dt><dd>{activity.capacity}</dd></>}</dl><div className="blocked-actions"><button className="secondary-button" onClick={() => setEditing(true)}>Edit activity</button><button className="danger-button" onClick={() => onCancel(activity.id)}>Cancel activity</button></div></>}</aside></div> }
+function ActivityDetails({
+  activity,
+  close,
+  onSave,
+  onCancel,
+  clients = [],
+  activities = [],
+}) {
+  const isAppointment = activity.type === "appointment";
+  const legacyLocation = activity.location ||
+    (isAppointment && activity.meta ? activity.meta.split("·").at(-1)?.trim() : activity.meta || "");
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(() => ({
+    title: activity.title,
+    date: activity.date,
+    time: activity.time,
+    meta: activity.meta || "",
+    clientId: activity.clientId ? String(activity.clientId) : "",
+    clientName: activity.clientName || "",
+    appointmentType: activity.appointmentType || APPOINTMENT_TYPES[0],
+    startTime: activity.startTime || "09:00",
+    endTime: activity.endTime || "10:00",
+    location: legacyLocation || "",
+  }));
+  const [error, setError] = useState("");
+  const date = new Date(`${activity.date}T00:00:00`);
+  const formattedDate = new Intl.DateTimeFormat("en-AU", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+  const typeLabel = activityTypes[activity.type]?.label || "Activity";
+
+  const update = (field, value) => {
+    setDraft((current) => ({ ...current, [field]: value }));
+    setError("");
+  };
+
+  const save = async (event) => {
+    event.preventDefault();
+
+    if (isAppointment) {
+      if (!draft.clientId) {
+        setError("Client is required.");
+        return;
+      }
+      if (!draft.appointmentType) {
+        setError("Appointment type is required.");
+        return;
+      }
+      if (!draft.title.trim()) {
+        setError("Title is required.");
+        return;
+      }
+      if (!draft.date) {
+        setError("Date is required.");
+        return;
+      }
+      if (!draft.startTime || !draft.endTime || draft.endTime <= draft.startTime) {
+        setError("End time must be later than start time.");
+        return;
+      }
+
+      const selectedClient = clients.find(
+        (client) => String(client.id) === String(draft.clientId),
+      );
+      const clientName = selectedClient
+        ? clientDisplayName(selectedClient)
+        : draft.clientName;
+      const candidate = {
+        ...activity,
+        title: draft.title.trim(),
+        date: draft.date,
+        clientId: draft.clientId,
+        clientName,
+        appointmentType: draft.appointmentType,
+        startTime: draft.startTime,
+        endTime: draft.endTime,
+        time: `${formatClock(draft.startTime)}–${formatClock(draft.endTime)}`,
+        location: draft.location.trim(),
+        meta: `${clientName} · ${draft.appointmentType}${draft.location.trim() ? ` · ${draft.location.trim()}` : ""}`,
+        position: positionFromTime(draft.startTime),
+        status: activity.status || "Scheduled",
+      };
+
+      const conflict = findAppointmentConflict(activities, candidate, activity.id);
+      if (conflict) {
+        setError(conflictMessage(conflict));
+        return;
+      }
+
+      const result = await onSave(candidate);
+      if (result?.ok === false) {
+        setError(result.message || "Appointment could not be updated.");
+        return;
+      }
+      close();
+      return;
+    }
+
+    if (!draft.title.trim() || !draft.date || !draft.time.trim()) {
+      setError("Title, date and time are required.");
+      return;
+    }
+    const result = await onSave({
+      ...activity,
+      title: draft.title.trim(),
+      date: draft.date,
+      time: draft.time.trim(),
+      meta: draft.meta.trim(),
+    });
+    if (result?.ok === false) {
+      setError(result.message || "Activity could not be updated.");
+      return;
+    }
+    close();
+  };
+
+  return (
+    <div className="drawer-backdrop" onMouseDown={close}>
+      <aside className="details-drawer" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="drawer-title">
+          <h2>{editing ? "Edit activity" : "Activity details"}</h2>
+          <button onClick={close} aria-label="Close"><X /></button>
+        </div>
+
+        {editing ? (
+          <form className="activity-edit-form" onSubmit={save} noValidate>
+            {isAppointment ? (
+              <>
+                <Field label="Client *">
+                  <select
+                    value={draft.clientId}
+                    onChange={(event) => {
+                      const client = clients.find(
+                        (item) => String(item.id) === event.target.value,
+                      );
+                      setDraft((current) => ({
+                        ...current,
+                        clientId: event.target.value,
+                        clientName: client ? clientDisplayName(client) : "",
+                      }));
+                      setError("");
+                    }}
+                  >
+                    <option value="">Select a client</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {clientDisplayName(client)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Appointment type *">
+                  <select
+                    value={draft.appointmentType}
+                    onChange={(event) => update("appointmentType", event.target.value)}
+                  >
+                    {APPOINTMENT_TYPES.map((type) => <option key={type}>{type}</option>)}
+                  </select>
+                </Field>
+                <Field label="Title *">
+                  <input value={draft.title} onChange={(event) => update("title", event.target.value)} />
+                </Field>
+                <Field label="Date *">
+                  <input type="date" value={draft.date} onChange={(event) => update("date", event.target.value)} />
+                </Field>
+                <div className="two-cols">
+                  <Field label="Start time *">
+                    <input type="time" value={draft.startTime} onChange={(event) => update("startTime", event.target.value)} />
+                  </Field>
+                  <Field label="End time *">
+                    <input type="time" value={draft.endTime} onChange={(event) => update("endTime", event.target.value)} />
+                  </Field>
+                </div>
+                <Field label="Location">
+                  <input value={draft.location} onChange={(event) => update("location", event.target.value)} />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field label="Title *">
+                  <input value={draft.title} onChange={(event) => update("title", event.target.value)} />
+                </Field>
+                <Field label="Date *">
+                  <input type="date" value={draft.date} onChange={(event) => update("date", event.target.value)} />
+                </Field>
+                <Field label="Time *">
+                  <input value={draft.time} onChange={(event) => update("time", event.target.value)} placeholder="e.g. 9:00–10:00" />
+                </Field>
+                <Field label="Location / details">
+                  <input value={draft.meta} onChange={(event) => update("meta", event.target.value)} />
+                </Field>
+              </>
+            )}
+
+            {error && <p className="form-error" role="alert">{error}</p>}
+            <div className="blocked-actions">
+              <button type="button" className="secondary-button" onClick={() => setEditing(false)}>Back</button>
+              <button type="submit" className="primary-button">Save changes</button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <span className={`activity-detail-badge ${activity.type}`}>{typeLabel.toUpperCase()}</span>
+            <h3>{activity.title}</h3>
+            <p>{activity.meta || "No additional details."}</p>
+            {activity.type === "series" && (
+              <div className="progress-card">
+                <small>SERIES PROGRESS</small>
+                <strong>Session {activity.capacity || "3 of 6"}</strong>
+                <div className="progress"><i style={{ width: "50%" }} /></div>
+              </div>
+            )}
+            <h4>Activity information</h4>
+            <dl className="detail-list">
+              {isAppointment && <><dt>Client</dt><dd>{activity.clientName || "Not linked"}</dd></>}
+              {isAppointment && <><dt>Appointment type</dt><dd>{activity.appointmentType || "Private appointment"}</dd></>}
+              <dt>Date</dt><dd>{formattedDate}</dd>
+              <dt>Time</dt><dd>{activity.time}</dd>
+              <dt>Type</dt><dd>{typeLabel}</dd>
+              {isAppointment && <><dt>Status</dt><dd>{activity.status || "Scheduled"}</dd></>}
+              <dt>Location / details</dt><dd>{isAppointment ? (activity.location || legacyLocation || "—") : (activity.meta || "—")}</dd>
+              {activity.capacity && <><dt>Progress</dt><dd>{activity.capacity}</dd></>}
+            </dl>
+            <div className="blocked-actions">
+              <button className="secondary-button" onClick={() => setEditing(true)}>Edit activity</button>
+              <button className="danger-button" onClick={() => onCancel(activity.id)}>Cancel activity</button>
+            </div>
+          </>
+        )}
+      </aside>
+    </div>
+  );
+}
 function BlockedDetails({ activity, close, onEdit, onCancel }) { const date = new Date(`${activity.date}T00:00:00`); const formattedDate = new Intl.DateTimeFormat('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date); return <div className="drawer-backdrop" onMouseDown={close}><aside className="details-drawer blocked-drawer" onMouseDown={e => e.stopPropagation()}><div className="drawer-title"><h2>Blocked time details</h2><button onClick={close} aria-label="Close"><X /></button></div><span className="blocked-badge">BLOCKED TIME</span><h3>{activity.title}</h3><p>{activity.reason || activity.meta || 'No reason provided.'}</p><h4>Time information</h4><dl className="detail-list"><dt>Date</dt><dd>{formattedDate}</dd><dt>Time</dt><dd>{activity.time}</dd><dt>Time type</dt><dd>{activity.timeType || 'Unavailable'}</dd><dt>Repeat</dt><dd>{activity.repeat || 'Does not repeat'}</dd><dt>Client bookings</dt><dd>{activity.preventBookings === false ? 'Allowed' : 'Prevented'}</dd></dl><div className="blocked-actions"><button className="secondary-button" onClick={() => onEdit(activity)}>Edit blocked time</button><button className="danger-button" onClick={() => onCancel(activity.id)}>Cancel blocked time</button></div></aside></div> }
 
-function Schedule({ go, activities, notice, clearNotice, onEditBlocked, onCancelBlocked, onUpdateActivity, onCancelActivity, onMoveActivity }) { const [filter, setFilter] = useState('All'), [weekStart, setWeekStart] = useState(() => startOfWeek(new Date())), [menu, setMenu] = useState(false), [selectedActivity, setSelectedActivity] = useState(null), [selectedBlocked, setSelectedBlocked] = useState(null), [draggingId, setDraggingId] = useState(null), [dropDate, setDropDate] = useState(null); const todayKey = toDateKey(new Date()); const startKey = toDateKey(weekStart); const endKey = toDateKey(addDays(weekStart, 6)); const visible = useMemo(() => activities.filter(a => a.date >= startKey && a.date <= endKey && (filter === 'All' || activityTypes[a.type].filter === filter)), [activities, endKey, filter, startKey]); const openActivity = activity => activity.type === 'blocked' ? setSelectedBlocked(activity) : setSelectedActivity(activity); const startDrag = (event, activity) => { setDraggingId(activity.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(activity.id)) }; const finishDrag = () => { setDraggingId(null); setDropDate(null) }; const dropActivity = (event, dateKey) => { event.preventDefault(); const id = event.dataTransfer.getData('text/plain'); onMoveActivity(id, dateKey); finishDrag() }; return <Page title="Schedule" subtitle="Manage classes, appointments and your availability." action="Create activity" onAction={() => setMenu(true)}>{notice && <div className="success-toast">✓ <span>{notice}</span><button onClick={clearNotice}>×</button></div>}<section className="schedule-toolbar"><h2>{formatRange(weekStart)}</h2><div className="week-controls"><button className="icon-button" aria-label="Previous week" onClick={() => setWeekStart(value => addDays(value, -7))}><ChevronLeft size={18} /></button><button className="today-button" onClick={() => setWeekStart(startOfWeek(new Date()))}>Today</button><button className="icon-button" aria-label="Next week" onClick={() => setWeekStart(value => addDays(value, 7))}><ChevronRight size={18} /></button></div></section><section className="filter-and-legend"><div className="filters">{filters.map(f => <button key={f} className={filter === f ? 'selected' : ''} onClick={() => setFilter(f)}>{f}</button>)}</div><div className="legend">{Object.entries(activityTypes).map(([k, v]) => <span key={k} className={k}><i />{v.label}</span>)}</div></section><section className={`calendar ${draggingId !== null ? 'is-dragging' : ''}`}>{DAYS.map((label, i) => { const date = addDays(weekStart, i); const dateKey = toDateKey(date); const list = visible.filter(a => a.date === dateKey); return <article className={`day-column ${dropDate === dateKey ? 'drop-target' : ''}`} key={dateKey} onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDropDate(dateKey) }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDropDate(null) }} onDrop={event => dropActivity(event, dateKey)}><header><span>{label}</span><strong className={dateKey === todayKey ? 'today-date' : ''}>{date.getDate()}</strong></header><div className="day-content">{list.map(a => <ActivityCard key={a.id} a={a} onClick={() => openActivity(a)} onDragStart={startDrag} onDragEnd={finishDrag} />)}</div></article> })}{visible.length === 0 && <div className="empty-state"><CalendarDays /><strong>No activities this week</strong><span>Use Create activity to add something to this schedule.</span></div>}<p className="calendar-tip">Tip: Select an activity for details, or drag it to another day.</p></section>{menu && <CreateMenu close={() => setMenu(false)} go={p => { setMenu(false); go(p) }} />}{selectedActivity && <ActivityDetails activity={selectedActivity} close={() => setSelectedActivity(null)} onSave={onUpdateActivity} onCancel={id => { if (window.confirm('Cancel this activity?')) { setSelectedActivity(null); onCancelActivity(id) } }} />} {selectedBlocked && <BlockedDetails activity={selectedBlocked} close={() => setSelectedBlocked(null)} onEdit={activity => { setSelectedBlocked(null); onEditBlocked(activity) }} onCancel={id => { if (window.confirm('Cancel this blocked time?')) { setSelectedBlocked(null); onCancelBlocked(id) } }} />}</Page> }
+function Schedule({
+  go,
+  activities,
+  clients,
+  notice,
+  clearNotice,
+  onEditBlocked,
+  onCancelBlocked,
+  onUpdateActivity,
+  onCancelActivity,
+  onMoveActivity,
+}) {
+  const [filter, setFilter] = useState("All");
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const [menu, setMenu] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [selectedBlocked, setSelectedBlocked] = useState(null);
+  const [draggingId, setDraggingId] = useState(null);
+  const [dropDate, setDropDate] = useState(null);
 
-const Stat = ({ label, value }) => (
-  <div className="stat-card">
-    <span>{label}</span>
-    <strong>{value}</strong>
-  </div>
-);
+  const todayKey = toDateKey(new Date());
+  const startKey = toDateKey(weekStart);
+  const endKey = toDateKey(addDays(weekStart, 6));
+  const visible = useMemo(
+    () =>
+      activities.filter(
+        (activity) =>
+          activity.date >= startKey &&
+          activity.date <= endKey &&
+          (filter === "All" || activityTypes[activity.type].filter === filter),
+      ),
+    [activities, endKey, filter, startKey],
+  );
 
+  const openActivity = (activity) =>
+    activity.type === "blocked"
+      ? setSelectedBlocked(activity)
+      : setSelectedActivity(activity);
+
+  const startDrag = (event, activity) => {
+    setDraggingId(activity.id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(activity.id));
+  };
+
+  const finishDrag = () => {
+    setDraggingId(null);
+    setDropDate(null);
+  };
+
+  const dropActivity = async (event, dateKey) => {
+    event.preventDefault();
+    const id = event.dataTransfer.getData("text/plain");
+    await onMoveActivity(id, dateKey);
+    finishDrag();
+  };
+
+  return (
+    <Page
+      title="Schedule"
+      subtitle="Manage classes, appointments and your availability."
+      action="Create activity"
+      onAction={() => setMenu(true)}
+    >
+      {notice && (
+        <div className="success-toast">
+          ✓ <span>{notice}</span><button onClick={clearNotice}>×</button>
+        </div>
+      )}
+
+      <section className="schedule-toolbar">
+        <h2>{formatRange(weekStart)}</h2>
+        <div className="week-controls">
+          <button className="icon-button" aria-label="Previous week" onClick={() => setWeekStart((value) => addDays(value, -7))}><ChevronLeft size={18} /></button>
+          <button className="today-button" onClick={() => setWeekStart(startOfWeek(new Date()))}>Today</button>
+          <button className="icon-button" aria-label="Next week" onClick={() => setWeekStart((value) => addDays(value, 7))}><ChevronRight size={18} /></button>
+        </div>
+      </section>
+
+      <section className="filter-and-legend">
+        <div className="filters">
+          {filters.map((item) => (
+            <button key={item} className={filter === item ? "selected" : ""} onClick={() => setFilter(item)}>{item}</button>
+          ))}
+        </div>
+        <div className="legend">
+          {Object.entries(activityTypes).map(([key, value]) => (
+            <span key={key} className={key}><i />{value.label}</span>
+          ))}
+        </div>
+      </section>
+
+      <section className={`calendar ${draggingId !== null ? "is-dragging" : ""}`}>
+        {DAYS.map((label, index) => {
+          const date = addDays(weekStart, index);
+          const dateKey = toDateKey(date);
+          const list = visible.filter((activity) => activity.date === dateKey);
+          return (
+            <article
+              className={`day-column ${dropDate === dateKey ? "drop-target" : ""}`}
+              key={dateKey}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDropDate(dateKey);
+              }}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setDropDate(null);
+              }}
+              onDrop={(event) => dropActivity(event, dateKey)}
+            >
+              <header>
+                <span>{label}</span>
+                <strong className={dateKey === todayKey ? "today-date" : ""}>{date.getDate()}</strong>
+              </header>
+              <div className="day-content">
+                {list.map((activity) => (
+                  <ActivityCard
+                    key={activity.id}
+                    a={activity}
+                    onClick={() => openActivity(activity)}
+                    onDragStart={startDrag}
+                    onDragEnd={finishDrag}
+                  />
+                ))}
+              </div>
+            </article>
+          );
+        })}
+        {visible.length === 0 && (
+          <div className="empty-state">
+            <CalendarDays />
+            <strong>No activities this week</strong>
+            <span>Use Create activity to add something to this schedule.</span>
+          </div>
+        )}
+        <p className="calendar-tip">Tip: Select an activity for details, or drag it to another day.</p>
+      </section>
+
+      {menu && <CreateMenu close={() => setMenu(false)} go={(next) => { setMenu(false); go(next); }} />}
+      {selectedActivity && (
+        <ActivityDetails
+          activity={selectedActivity}
+          clients={clients}
+          activities={activities}
+          close={() => setSelectedActivity(null)}
+          onSave={onUpdateActivity}
+          onCancel={(id) => {
+            if (window.confirm("Cancel this activity?")) {
+              setSelectedActivity(null);
+              onCancelActivity(id);
+            }
+          }}
+        />
+      )}
+      {selectedBlocked && (
+        <BlockedDetails
+          activity={selectedBlocked}
+          close={() => setSelectedBlocked(null)}
+          onEdit={(activity) => {
+            setSelectedBlocked(null);
+            onEditBlocked(activity);
+          }}
+          onCancel={(id) => {
+            if (window.confirm("Cancel this blocked time?")) {
+              setSelectedBlocked(null);
+              onCancelBlocked(id);
+            }
+          }}
+        />
+      )}
+    </Page>
+  );
+}
 function Series({ go }) {
   const cards = [
     ["Strong Start", "3 of 6 sessions", "9 participants", 50, "purple"],
@@ -226,7 +649,13 @@ function Series({ go }) {
     </Page>
   );
 }
-function Appointments({ activities, go, onUpdateActivity, onCancelActivity }) {
+function Appointments({
+  activities,
+  clients,
+  go,
+  onUpdateActivity,
+  onCancelActivity,
+}) {
   const [selectedActivity, setSelectedActivity] = useState(null);
   const todayKey = toDateKey(new Date());
   const appointments = activities
@@ -251,8 +680,9 @@ function Appointments({ activities, go, onUpdateActivity, onCancelActivity }) {
           })
             .format(date)
             .toUpperCase();
-    return `${day} · ${activity.time.split("–")[0].trim()}`;
+    return `${day} · ${formatClock(activity.startTime) || activity.time.split("–")[0].trim()}`;
   };
+
   return (
     <Page
       title="Appointments"
@@ -280,7 +710,7 @@ function Appointments({ activities, go, onUpdateActivity, onCancelActivity }) {
               </button>
             ))}
             {appointments.length === 0 && (
-              <p className="helper">No appointments have been created yet.</p>
+              <p className="helper appointment-empty">No appointments have been created yet.</p>
             )}
           </div>
         </div>
@@ -291,9 +721,12 @@ function Appointments({ activities, go, onUpdateActivity, onCancelActivity }) {
           <p>No booking conflicts</p>
         </aside>
       </section>
+
       {selectedActivity && (
         <ActivityDetails
           activity={selectedActivity}
+          clients={clients}
+          activities={activities}
           close={() => setSelectedActivity(null)}
           onSave={onUpdateActivity}
           onCancel={(id) => {
@@ -333,7 +766,149 @@ function SettingsPage() {
   );
 }
 
-function CreateScheduledActivity({ go, onSubmit, type }) { const isAppointment = type === 'appointment'; const [form, setForm] = useState({ title: '', date: toDateKey(new Date()), startTime: '09:00', endTime: '10:00', location: '' }); const [error, setError] = useState(''); const update = (field, value) => { setForm(current => ({ ...current, [field]: value })); setError('') }; const submit = event => { event.preventDefault(); if (!form.title.trim()) { setError(`${isAppointment ? 'Client name' : 'Class title'} is required.`); return } if (!form.date) { setError('Date is required.'); return } if (!form.startTime || !form.endTime || form.endTime <= form.startTime) { setError('End time must be later than start time.'); return } onSubmit({ ...form, type, title: form.title.trim(), location: form.location.trim() }); go('schedule') }; return <main className="form-page"><button className="back-link" onClick={() => go('schedule')}>‹ Schedule</button><Header title={isAppointment ? 'Create appointment' : 'Create single class'} subtitle={isAppointment ? 'Book a private session for a client.' : 'Add a one-time class to the weekly schedule.'} /><form className="form-card compact-form" onSubmit={submit} noValidate><Field label={`${isAppointment ? 'Client name' : 'Class title'} *`}><input value={form.title} onChange={event => update('title', event.target.value)} placeholder={isAppointment ? 'Enter client name' : 'Enter class title'} /></Field><Field label="Date *"><input type="date" value={form.date} onChange={event => update('date', event.target.value)} /></Field><div className="two-cols"><Field label="Start time *"><input type="time" value={form.startTime} onChange={event => update('startTime', event.target.value)} /></Field><Field label="End time *"><input type="time" value={form.endTime} onChange={event => update('endTime', event.target.value)} /></Field></div><Field label={isAppointment ? 'Room / online details' : 'Location'}><input value={form.location} onChange={event => update('location', event.target.value)} placeholder={isAppointment ? 'e.g. Room 2 or Zoom' : 'e.g. Studio A'} /></Field>{error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={() => go('schedule')}>Cancel</button><button type="submit" className="primary-button">{isAppointment ? 'Create appointment' : 'Create class'}</button></div></form></main> }
+function CreateScheduledActivity({
+  go,
+  onSubmit,
+  type,
+  clients = [],
+  activities = [],
+}) {
+  const isAppointment = type === "appointment";
+  const [form, setForm] = useState({
+    clientId: "",
+    clientName: "",
+    appointmentType: APPOINTMENT_TYPES[0],
+    title: "",
+    date: toDateKey(new Date()),
+    startTime: "09:00",
+    endTime: "10:00",
+    location: "",
+  });
+  const [error, setError] = useState("");
+
+  const update = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setError("");
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+
+    if (isAppointment && !form.clientId) {
+      setError("Client is required.");
+      return;
+    }
+    if (isAppointment && !form.appointmentType) {
+      setError("Appointment type is required.");
+      return;
+    }
+    if (!form.title.trim()) {
+      setError(`${isAppointment ? "Title" : "Class title"} is required.`);
+      return;
+    }
+    if (!form.date) {
+      setError("Date is required.");
+      return;
+    }
+    if (!form.startTime || !form.endTime || form.endTime <= form.startTime) {
+      setError("End time must be later than start time.");
+      return;
+    }
+
+    const payload = {
+      ...form,
+      type,
+      title: form.title.trim(),
+      location: form.location.trim(),
+    };
+
+    if (isAppointment) {
+      const conflict = findAppointmentConflict(activities, payload);
+      if (conflict) {
+        setError(conflictMessage(conflict));
+        return;
+      }
+    }
+
+    const result = await onSubmit(payload);
+    if (result?.ok === false) {
+      setError(result.message || "Appointment could not be saved to the database.");
+      return;
+    }
+    go("schedule");
+  };
+
+  return (
+    <main className="form-page">
+      <button className="back-link" onClick={() => go("schedule")}>‹ Schedule</button>
+      <Header
+        title={isAppointment ? "Create appointment" : "Create single class"}
+        subtitle={isAppointment ? "Book a private session for a client." : "Add a one-time class to the weekly schedule."}
+      />
+      <form className="form-card compact-form" onSubmit={submit} noValidate>
+        {isAppointment ? (
+          <>
+            <Field label="Client *">
+              <select
+                value={form.clientId}
+                onChange={(event) => {
+                  const selectedClient = clients.find(
+                    (client) => String(client.id) === event.target.value,
+                  );
+                  setForm((current) => ({
+                    ...current,
+                    clientId: event.target.value,
+                    clientName: selectedClient ? clientDisplayName(selectedClient) : "",
+                  }));
+                  setError("");
+                }}
+              >
+                <option value="">Select a client</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>{clientDisplayName(client)}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Appointment type *">
+              <select value={form.appointmentType} onChange={(event) => update("appointmentType", event.target.value)}>
+                {APPOINTMENT_TYPES.map((appointmentType) => (
+                  <option key={appointmentType}>{appointmentType}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Title *">
+              <input value={form.title} onChange={(event) => update("title", event.target.value)} placeholder="e.g. Initial consultation" />
+            </Field>
+          </>
+        ) : (
+          <Field label="Class title *">
+            <input value={form.title} onChange={(event) => update("title", event.target.value)} placeholder="Enter class title" />
+          </Field>
+        )}
+
+        <Field label="Date *">
+          <input type="date" value={form.date} onChange={(event) => update("date", event.target.value)} />
+        </Field>
+        <div className="two-cols">
+          <Field label="Start time *">
+            <input type="time" value={form.startTime} onChange={(event) => update("startTime", event.target.value)} />
+          </Field>
+          <Field label="End time *">
+            <input type="time" value={form.endTime} onChange={(event) => update("endTime", event.target.value)} />
+          </Field>
+        </div>
+        <Field label="Location">
+          <input value={form.location} onChange={(event) => update("location", event.target.value)} placeholder={isAppointment ? "e.g. Room 2 or Zoom" : "e.g. Studio A"} />
+        </Field>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="form-actions">
+          <button type="button" className="secondary-button" onClick={() => go("schedule")}>Cancel</button>
+          <button type="submit" className="primary-button">{isAppointment ? "Create appointment" : "Create class"}</button>
+        </div>
+      </form>
+    </main>
+  );
+}
 
 function BlockTime({ go, onSubmit, initial }) { const [form, setForm] = useState(() => initial ? { timeType: initial.timeType || 'Personal appointment', title: initial.title, date: initial.date, endDate: initial.date, startTime: initial.startTime || '14:00', endTime: initial.endTime || '16:00', repeat: initial.repeat || 'Does not repeat', reason: initial.reason || '', preventBookings: initial.preventBookings !== false } : { timeType: 'Personal appointment', title: '', date: toDateKey(new Date()), endDate: toDateKey(new Date()), startTime: '14:00', endTime: '16:00', repeat: 'Does not repeat', reason: '', preventBookings: true }); const [error, setError] = useState(''); const update = (field, value) => { setForm(current => ({ ...current, [field]: value, ...(field === 'date' && current.endDate < value ? { endDate: value } : {}) })); if ((field === 'title' && value.trim()) || field === 'date' || field === 'endDate' || field === 'startTime' || field === 'endTime') setError('') }; const submit = event => { event.preventDefault(); if (!form.title.trim()) { setError('Title is required. Please enter a title.'); return } if (!form.date || !form.endDate) { setError('Start date and end date are required.'); return } if (form.endDate < form.date) { setError('End date must be the same as or later than start date.'); return } if (!form.startTime || !form.endTime || form.endTime <= form.startTime) { setError('End time must be later than start time.'); return } onSubmit({ ...form, id: initial?.id, title: form.title.trim() }); go('schedule') }; return <main className="form-page"><button className="back-link" onClick={() => go('schedule')}>‹ Schedule</button><Header title={initial ? 'Edit blocked time' : 'Block personal or work time'} subtitle={initial ? 'Update this unavailable period.' : 'Add unavailable time to prevent clients from booking you.'} /><form className="form-card compact-form" onSubmit={submit} noValidate><Field label="Time type"><select value={form.timeType} onChange={e => update('timeType', e.target.value)}><option>Personal appointment</option><option>Administration work</option></select></Field><Field label="Title *"><input value={form.title} onChange={e => update('title', e.target.value)} placeholder="Enter a title" aria-required="true" /></Field><div className="two-cols"><Field label="Start date"><input type="date" value={form.date} onChange={e => update('date', e.target.value)} required /></Field><Field label="End date"><input type="date" value={form.endDate} min={form.date} onChange={e => update('endDate', e.target.value)} required /></Field></div><div className="two-cols"><Field label="Start time"><input type="time" value={form.startTime} onChange={e => update('startTime', e.target.value)} required /></Field><Field label="End time"><input type="time" value={form.endTime} onChange={e => update('endTime', e.target.value)} required /></Field></div><Field label="Repeat"><select value={form.repeat} onChange={e => update('repeat', e.target.value)}><option>Does not repeat</option><option>Weekly</option></select></Field><Field label="Reason"><textarea value={form.reason} onChange={e => update('reason', e.target.value)} placeholder="e.g. Personal appointment or administration work" /></Field><label className="check-line"><input type="checkbox" checked={form.preventBookings} onChange={e => update('preventBookings', e.target.checked)} /> Prevent client bookings during this time</label>{error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={() => go('schedule')}>Cancel</button><button type="submit" className="primary-button">{initial ? 'Save changes' : 'Block time'}</button></div></form></main> }
 function CreateSeries({ go }) { return <main className="form-page"><button className="back-link" onClick={() => go('series')}>‹ Event Series</button><Header title="Create Event Series" subtitle="Create a multi-session program and manage all sessions in one place." /><section className="form-card wide-form"><h2>Basic information</h2><Field label="Series name"><input defaultValue="Strong Start" /></Field><Field label="Description"><textarea defaultValue="A six-week beginner program focused on strength and balance." /></Field><div className="two-cols"><Field label="Instructor"><select><option>Claire</option></select></Field><Field label="Location"><select><option>Studio A</option></select></Field></div><h2>Sessions</h2><div className="session-editor"><small>SESSION 1</small><strong>Wednesday, 16 September 2026</strong><span>9:00–10:00 AM · Studio A</span><span>Capacity: 12 participants</span></div><button className="add-outline">＋ Add another session</button><h2>Booking settings</h2><div className="three-cols"><Field label="Capacity"><input defaultValue="12 participants" /></Field><Field label="Program price"><input defaultValue="$120 for 6 sessions" /></Field><Field label="Booking opens"><select><option>Immediately</option></select></Field></div><label className="check-line"><input type="checkbox" defaultChecked /> Allow clients to join after the series has started</label><p className="helper">Clients joining late will see the remaining sessions and adjusted availability.</p><div className="form-actions"><button className="secondary-button" onClick={() => go('series')}>Cancel</button><button className="primary-button" onClick={() => go('series')}>Create event series</button></div></section></main> }
@@ -507,7 +1082,7 @@ function ClientProfile({ go, client }) {
     if (!client?.id) return;
     setLoading(true);
     setError("");
-    fetch(`http://localhost:3001/api/clients/${client.id}`)
+    fetch(`${CLIENTS_API}/${client.id}`)
       .then(readApiResponse)
       .then((data) => setProfile(data))
       .catch((err) => {
@@ -527,11 +1102,13 @@ function ClientProfile({ go, client }) {
 
   const data = profile || client;
   const intake = profile?.intake;
+  const appointments = profile?.appointments || [];
   const firstName = data.first_name ?? data.firstName ?? "";
   const lastName = data.last_name ?? data.lastName ?? "";
   const fullName = `${firstName} ${lastName}`.trim();
   const initials = `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase();
   const value = (v, fallback = "Not provided") => v || fallback;
+
   const formatStoredList = (stored) => {
     if (!stored) return "Not provided";
     try {
@@ -541,12 +1118,27 @@ function ClientProfile({ go, client }) {
       return stored;
     }
   };
+
   const formatDate = (date) => {
     if (!date) return "Not provided";
     const parsed = new Date(`${date}T00:00:00`);
     return Number.isNaN(parsed.getTime())
       ? date
-      : new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", year: "numeric" }).format(parsed);
+      : new Intl.DateTimeFormat("en-AU", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }).format(parsed);
+  };
+
+  const appointmentDateLabel = (appointment) => {
+    const parsed = new Date(`${appointment.date}T00:00:00`);
+    const day = new Intl.DateTimeFormat("en-AU", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    }).format(parsed).toUpperCase();
+    return `${day} · ${formatClock(appointment.startTime)}`;
   };
 
   return (
@@ -554,6 +1146,7 @@ function ClientProfile({ go, client }) {
       <button className="back-link" onClick={() => go("clients")}>‹ Clients</button>
       {loading && <p>Loading client profile…</p>}
       {error && <p className="form-error">{error}</p>}
+
       <div className="profile-layout">
         <section className="form-card">
           <div className="profile-heading">
@@ -576,6 +1169,27 @@ function ClientProfile({ go, client }) {
             <dt>Years of practice</dt><dd>{value(intake?.years_of_practice)}</dd>
           </dl>
 
+          <h2>Upcoming appointments</h2>
+          {appointments.length === 0 ? (
+            <p className="profile-empty">No appointments linked to this client.</p>
+          ) : (
+            <div className="profile-appointments">
+              {appointments.map((appointment) => (
+                <div className="profile-appointment-row" key={appointment.id}>
+                  <strong>{appointmentDateLabel(appointment)}</strong>
+                  <span>
+                    <b>{appointment.title}</b>
+                    <small>
+                      {appointment.appointmentType || "Private appointment"}
+                      {appointment.location ? ` · ${appointment.location}` : ""}
+                    </small>
+                  </span>
+                  <em>{appointment.status || "Scheduled"}</em>
+                </div>
+              ))}
+            </div>
+          )}
+
           <h2>Safety information</h2>
           <dl className="summary-list">
             <dt>Injuries / limitations</dt>
@@ -592,6 +1206,7 @@ function ClientProfile({ go, client }) {
         <aside className="progress-panel">
           <h3>{intake ? "Registration details" : "Client record"}</h3>
           <p>{intake ? "✓ Intake form completed" : "○ Intake form not completed"}</p>
+          <p>✓ {appointments.length} appointment{appointments.length === 1 ? "" : "s"} linked</p>
           <p>Membership: {value(data.membership, "New client")}</p>
           <p>Last activity: {value(data.last_activity, "No activity")}</p>
           <button
@@ -656,7 +1271,7 @@ function ClientProfile({ go, client }) {
 export default function App() {
   const currentWeek = useMemo(() => startOfWeek(new Date()), []);
   const [page, setPage] = useState("schedule");
-  const [clients, setClients] = useState(initialClients);
+  const [clients, setClients] = useState([]);
   const [currentClient, setCurrentClient] = useState(null);
   const [notice, setNotice] = useState("");
   const [editingBlocked, setEditingBlocked] = useState(null);
@@ -688,6 +1303,29 @@ export default function App() {
         : {}),
     })),
   );
+
+  const loadClients = async () => {
+    try {
+      const response = await fetch(CLIENTS_API);
+      const data = await readApiResponse(response);
+      setClients(
+        data.map((client) => ({
+          id: client.id,
+          firstName: client.first_name,
+          lastName: client.last_name,
+          email: client.email,
+          phone: client.phone,
+          dateOfBirth: client.date_of_birth,
+          gender: client.gender,
+          membership: client.membership,
+          lastActivity: client.last_activity,
+        })),
+      );
+    } catch (error) {
+      console.error("Failed to load clients:", error);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     fetch(ACTIVITIES_API)
@@ -705,18 +1343,22 @@ export default function App() {
       active = false;
     };
   }, []);
-  const go = (p) => {
-    console.log("Going to page:", p);
-    setPage(p);
+
+  useEffect(() => {
+    loadClients();
+  }, []);
+
+  useEffect(() => {
+    if (page === "create-appointment") loadClients();
+  }, [page]);
+
+  const go = (nextPage) => {
+    setPage(nextPage);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const saveClientToDatabase = () => {
+  const saveClientToDatabase = async () => {
     try {
-      // Client and intake have already been saved to the database
-      console.log("Registration completed for:", currentClient);
-
-      // Clear registration form
       setRegistrationData({
         firstName: "",
         lastName: "",
@@ -729,88 +1371,149 @@ export default function App() {
         emergencyPhone: "",
         additionalInfo: "",
       });
-
-      // Clear current client
       setCurrentClient(null);
-
-      // Return to Clients page
+      await loadClients();
       go("clients");
     } catch (error) {
-      console.error("Error saving client:", error);
+      console.error("Error completing client registration:", error);
       alert(error.message);
     }
   };
 
-  const addClient = (clientData) => {
-  const newClient = {
-    id: Date.now(),
-    ...clientData,
-    membership: 'New client',
-    lastActivity: 'Just added'
-  };
-
-  setClients((currentClients) => [
-    ...currentClients,
-    newClient
-  ]);
-};
-const saveScheduledActivity = async (form) => {
-  const activity = {
-    type: form.type,
-    title: form.title,
-    date: form.date,
-    startTime: form.startTime,
-    endTime: form.endTime,
-    time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
-    meta:
-      form.type === "appointment"
-        ? `Appointment${form.location ? ` · ${form.location}` : ""}`
+  const saveScheduledActivity = async (form) => {
+    const isAppointment = form.type === "appointment";
+    const activity = {
+      type: form.type,
+      title: form.title,
+      clientId: isAppointment ? form.clientId : undefined,
+      clientName: isAppointment ? form.clientName : undefined,
+      appointmentType: isAppointment ? form.appointmentType : undefined,
+      date: form.date,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
+      location: form.location || undefined,
+      meta: isAppointment
+        ? `${form.clientName} · ${form.appointmentType}${form.location ? ` · ${form.location}` : ""}`
         : form.location || "Location not set",
-    position: positionFromTime(form.startTime),
-  };
-  try {
-    const saved = await readApiResponse(
-      await fetch(ACTIVITIES_API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(activity),
-      }),
-    );
-    setActivities((current) => [...current, saved]);
-    setNotice(
-      form.type === "appointment"
-        ? "Appointment created."
-        : "Single class created.",
-    );
-  } catch (error) {
-    console.error(error);
-    setNotice("Activity could not be saved to the database.");
-  }
-};
+      position: positionFromTime(form.startTime),
+      status: isAppointment ? "Scheduled" : undefined,
+    };
 
-const saveBlockedTime = async (form) => {
-  const createBlocked = (date, id) => ({
-    id,
-    type: "blocked",
-    title: form.title,
-    date,
-    startTime: form.startTime,
-    endTime: form.endTime,
-    time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
-    timeType: form.timeType,
-    repeat: form.repeat,
-    reason: form.reason,
-    preventBookings: form.preventBookings,
-    meta: form.reason.trim() || form.timeType,
-    position: positionFromTime(form.startTime),
-    badge: form.preventBookings ? "No bookings" : undefined,
-  });
-
-  if (form.id) {
     try {
-      const updated = createBlocked(form.date, form.id);
       const saved = await readApiResponse(
-        await fetch(`${ACTIVITIES_API}/${form.id}`, {
+        await fetch(ACTIVITIES_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(activity),
+        }),
+      );
+      setActivities((current) => [...current, saved]);
+      setNotice(isAppointment ? "Appointment created." : "Single class created.");
+      return { ok: true, saved };
+    } catch (error) {
+      console.error(error);
+      setNotice(isAppointment ? "Appointment could not be saved to the database." : "Activity could not be saved to the database.");
+      return { ok: false, message: error.message };
+    }
+  };
+
+  const saveBlockedTime = async (form) => {
+    const createBlocked = (date, id) => ({
+      id,
+      type: "blocked",
+      title: form.title,
+      date,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      time: `${formatClock(form.startTime)}–${formatClock(form.endTime)}`,
+      timeType: form.timeType,
+      repeat: form.repeat,
+      reason: form.reason,
+      preventBookings: form.preventBookings,
+      meta: form.reason.trim() || form.timeType,
+      position: positionFromTime(form.startTime),
+      badge: form.preventBookings ? "No bookings" : undefined,
+    });
+
+    if (form.id) {
+      try {
+        const updated = createBlocked(form.date, form.id);
+        const saved = await readApiResponse(
+          await fetch(`${ACTIVITIES_API}/${form.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updated),
+          }),
+        );
+        setActivities((current) =>
+          current.map((activity) =>
+            String(activity.id) === String(form.id) ? saved : activity,
+          ),
+        );
+        setNotice("Blocked time updated.");
+      } catch (error) {
+        console.error(error);
+        setNotice("Blocked time could not be updated in the database.");
+      }
+    } else {
+      const blocks = [];
+      let date = new Date(`${form.date}T00:00:00`);
+      const endDate = new Date(`${form.endDate}T00:00:00`);
+      let index = 0;
+      while (date <= endDate) {
+        blocks.push(createBlocked(toDateKey(date), `blocked-${Date.now()}-${index}`));
+        date = addDays(date, 1);
+        index += 1;
+      }
+      try {
+        const savedBlocks = await Promise.all(
+          blocks.map((block) =>
+            fetch(ACTIVITIES_API, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(block),
+            }).then(readApiResponse),
+          ),
+        );
+        setActivities((current) => [...current, ...savedBlocks]);
+        setNotice(savedBlocks.length === 1 ? "Blocked time created." : `${savedBlocks.length} blocked times created.`);
+      } catch (error) {
+        console.error(error);
+        setNotice("Blocked time could not be saved to the database.");
+      }
+    }
+    setEditingBlocked(null);
+  };
+
+  const editBlocked = (activity) => {
+    setEditingBlocked(activity);
+    go("block-time");
+  };
+
+  const deleteActivity = async (id, successMessage) => {
+    try {
+      await readApiResponse(
+        await fetch(`${ACTIVITIES_API}/${id}`, { method: "DELETE" }),
+      );
+      setActivities((current) =>
+        current.filter((activity) => String(activity.id) !== String(id)),
+      );
+      setNotice(successMessage);
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      setNotice("Activity could not be removed from the database.");
+      return { ok: false, message: error.message };
+    }
+  };
+
+  const cancelBlocked = (id) => deleteActivity(id, "Blocked time cancelled.");
+
+  const updateActivity = async (updated) => {
+    try {
+      const saved = await readApiResponse(
+        await fetch(`${ACTIVITIES_API}/${updated.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updated),
@@ -818,197 +1521,147 @@ const saveBlockedTime = async (form) => {
       );
       setActivities((current) =>
         current.map((activity) =>
-          activity.id === form.id ? saved : activity,
+          String(activity.id) === String(saved.id) ? saved : activity,
         ),
       );
-      setNotice("Blocked time updated.");
+      setNotice(updated.type === "appointment" ? "Appointment updated." : "Activity updated.");
+      return { ok: true, saved };
     } catch (error) {
       console.error(error);
-      setNotice("Blocked time could not be updated in the database.");
+      setNotice("Activity could not be updated in the database.");
+      return { ok: false, message: error.message };
     }
-  } else {
-    const blocks = [];
-    let date = new Date(`${form.date}T00:00:00`);
-    const endDate = new Date(`${form.endDate}T00:00:00`);
-    let index = 0;
-    while (date <= endDate) {
-      blocks.push(
-        createBlocked(toDateKey(date), `blocked-${Date.now()}-${index}`),
-      );
-      date = addDays(date, 1);
-      index += 1;
-    }
-    try {
-      const savedBlocks = await Promise.all(
-        blocks.map((block) =>
-          fetch(ACTIVITIES_API, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(block),
-          }).then(readApiResponse),
-        ),
-      );
-      setActivities((current) => [...current, ...savedBlocks]);
-      setNotice(
-        savedBlocks.length === 1
-          ? "Blocked time created."
-          : `${savedBlocks.length} blocked times created.`,
-      );
-    } catch (error) {
-      console.error(error);
-      setNotice("Blocked time could not be saved to the database.");
-    }
-  }
-  setEditingBlocked(null);
-};
+  };
 
-const editBlocked = (activity) => {
-  setEditingBlocked(activity);
-  go("block-time");
-};
-const deleteActivity = async (id, successMessage) => {
-  try {
-    await readApiResponse(
-      await fetch(`${ACTIVITIES_API}/${id}`, { method: "DELETE" }),
+  const cancelActivity = (id) => deleteActivity(id, "Appointment cancelled.");
+
+  const moveActivity = async (id, date) => {
+    const activity = activities.find((item) => String(item.id) === String(id));
+    if (!activity || activity.date === date) return { ok: true };
+
+    if (activity.type === "appointment") {
+      const conflict = findAppointmentConflict(
+        activities,
+        { ...activity, date },
+        activity.id,
+      );
+      if (conflict) {
+        const message = conflictMessage(conflict);
+        setNotice(`Move blocked: ${message}`);
+        return { ok: false, message };
+      }
+    }
+
+    try {
+      const saved = await readApiResponse(
+        await fetch(`${ACTIVITIES_API}/${id}/date`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date }),
+        }),
+      );
+      setActivities((current) =>
+        current.map((item) =>
+          String(item.id) === String(id) ? saved : item,
+        ),
+      );
+      setNotice(activity.type === "appointment" ? "Appointment moved." : "Activity moved.");
+      return { ok: true, saved };
+    } catch (error) {
+      console.error(error);
+      setNotice(`Activity could not be moved: ${error.message}`);
+      return { ok: false, message: error.message };
+    }
+  };
+
+  let view;
+  if (page === "schedule") {
+    view = (
+      <Schedule
+        go={go}
+        activities={activities}
+        clients={clients}
+        notice={notice}
+        clearNotice={() => setNotice("")}
+        onEditBlocked={editBlocked}
+        onCancelBlocked={cancelBlocked}
+        onUpdateActivity={updateActivity}
+        onCancelActivity={cancelActivity}
+        onMoveActivity={moveActivity}
+      />
     );
-    setActivities((current) =>
-      current.filter((activity) => activity.id !== id),
+  } else if (page === "clients") {
+    view = <Clients go={go} Page={Page} clients={clients} onSelectClient={setCurrentClient} />;
+  } else if (page === "series") {
+    view = <Series go={go} />;
+  } else if (page === "appointments") {
+    view = (
+      <Appointments
+        activities={activities}
+        clients={clients}
+        go={go}
+        onUpdateActivity={updateActivity}
+        onCancelActivity={cancelActivity}
+      />
     );
-    setNotice(successMessage);
-  } catch (error) {
-    console.error(error);
-    setNotice("Activity could not be removed from the database.");
+  } else if (page === "settings") {
+    view = <SettingsPage />;
+  } else if (page === "block-time") {
+    view = (
+      <BlockTime
+        go={(nextPage) => {
+          if (nextPage === "schedule") setEditingBlocked(null);
+          go(nextPage);
+        }}
+        onSubmit={saveBlockedTime}
+        initial={editingBlocked}
+      />
+    );
+  } else if (page === "create-class") {
+    view = (
+      <CreateScheduledActivity
+        go={go}
+        onSubmit={saveScheduledActivity}
+        type="class"
+        activities={activities}
+      />
+    );
+  } else if (page === "create-appointment") {
+    view = (
+      <CreateScheduledActivity
+        go={go}
+        onSubmit={saveScheduledActivity}
+        type="appointment"
+        clients={clients}
+        activities={activities}
+      />
+    );
+  } else if (page === "create-series") {
+    view = <CreateSeries go={go} />;
+  } else if (page === "add-client") {
+    view = (
+      <AddClient
+        go={go}
+        Header={Header}
+        form={registrationData}
+        setForm={setRegistrationData}
+        setCurrentClient={setCurrentClient}
+      />
+    );
+  } else if (page === "intake") {
+    view = <Intake go={go} Header={Header} currentClient={currentClient} />;
+  } else if (page === "eligibility") {
+    view = <Eligibility go={go} />;
+  } else if (page === "complete") {
+    view = <Complete go={go} onComplete={saveClientToDatabase} />;
+  } else {
+    view = <ClientProfile go={go} client={currentClient} />;
   }
-};
-const cancelBlocked = (id) => deleteActivity(id, "Blocked time cancelled.");
-const updateActivity = async (updated) => {
-  try {
-    const saved = await readApiResponse(
-      await fetch(`${ACTIVITIES_API}/${updated.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
-      }),
-    );
-    setActivities((current) =>
-      current.map((activity) =>
-        activity.id === saved.id ? saved : activity,
-      ),
-    );
-    setNotice("Activity updated.");
-  } catch (error) {
-    console.error(error);
-    setNotice("Activity could not be updated in the database.");
-  }
-};
-const cancelActivity = (id) => deleteActivity(id, "Activity cancelled.");
-const moveActivity = async (id, date) => {
-  try {
-    const saved = await readApiResponse(
-      await fetch(`${ACTIVITIES_API}/${id}/date`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date }),
-      }),
-    );
-    setActivities((current) =>
-      current.map((activity) =>
-        String(activity.id) === String(id) ? saved : activity,
-      ),
-    );
-    setNotice("Activity moved.");
-  } catch (error) {
-    console.error(error);
-    setNotice("Activity could not be moved in the database.");
-  }
-};
-let view;
-if (page === "schedule")
-  view = (
-    <Schedule
-      go={go}
-      activities={activities}
-      notice={notice}
-      clearNotice={() => setNotice("")}
-      onEditBlocked={editBlocked}
-      onCancelBlocked={cancelBlocked}
-      onUpdateActivity={updateActivity}
-      onCancelActivity={cancelActivity}
-      onMoveActivity={moveActivity}
-    />
+
+  return (
+    <div className="app-shell">
+      <Sidebar page={page} go={go} />
+      {view}
+    </div>
   );
-else if (page === "clients")
-  view = <Clients go={go} Page={Page} clients={clients} onSelectClient={setCurrentClient} />;
-else if (page === "series") view = <Series go={go} />;
-else if (page === "appointments")
-  view = (
-    <Appointments
-      activities={activities}
-      go={go}
-      onUpdateActivity={updateActivity}
-      onCancelActivity={cancelActivity}
-    />
-  );
-else if (page === "settings") view = <SettingsPage />;
-else if (page === "block-time")
-  view = (
-    <BlockTime
-      go={(nextPage) => {
-        if (nextPage === "schedule") setEditingBlocked(null);
-        go(nextPage);
-      }}
-      onSubmit={saveBlockedTime}
-      initial={editingBlocked}
-    />
-  );
-else if (page === "create-class")
-  view = (
-    <CreateScheduledActivity
-      go={go}
-      onSubmit={saveScheduledActivity}
-      type="class"
-    />
-  );
-else if (page === "create-appointment")
-  view = (
-    <CreateScheduledActivity
-      go={go}
-      onSubmit={saveScheduledActivity}
-      type="appointment"
-    />
-  );
-else if (page === "create-series") view = <CreateSeries go={go} />;
-else if (page === "add-client")
-  view = (
-    <AddClient
-      go={go}
-      Header={Header}
-      form={registrationData}
-      setForm={setRegistrationData}
-      setCurrentClient={setCurrentClient}
-    />
-  );
-else if (page === "intake")
-  view = (
-    <Intake
-      go={go}
-      Header={Header}
-      currentClient={currentClient}
-    />
-  );
-else if (page === "eligibility") view = <Eligibility go={go} />;
-else if (page === "complete")
-  view = (
-    <Complete
-      go={go}
-      onComplete={saveClientToDatabase}
-    />
-  );
-else view = <ClientProfile go={go} client={currentClient} />;
-return (
-  <div className="app-shell">
-    <Sidebar page={page} go={go} />
-    {view}
-  </div>
-);
 }
