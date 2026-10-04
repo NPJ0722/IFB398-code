@@ -1240,3 +1240,83 @@ main {
   color: #9b3329;
   font-size: 12px;
 }
+
+/* Appointment management additions (KAN-96 to KAN-102) */
+.profile-appointments {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: #fff;
+}
+.profile-appointment-row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #edf1ef;
+}
+.profile-appointment-row:last-child {
+  border-bottom: 0;
+}
+.profile-appointment-row > strong {
+  color: var(--green-700);
+  font-size: 11px;
+}
+.profile-appointment-row span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.profile-appointment-row b {
+  font-size: 13px;
+}
+.profile-appointment-row small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.profile-appointment-row em {
+  padding: 7px 12px;
+  border-radius: 18px;
+  background: var(--green-100);
+  color: var(--green-700);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+.profile-empty {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed #cfd9d3;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.appointment-empty {
+  margin: 0;
+  padding: 22px;
+}
+.calendar.is-dragging .day-column {
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+.calendar.is-dragging .day-column.drop-target {
+  background: #eef8f4;
+  box-shadow: inset 0 0 0 2px #7bc4a9;
+}
+.activity-card[draggable="true"] {
+  cursor: grab;
+}
+.activity-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 720px) {
+  .profile-appointment-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .profile-appointment-row em {
+    justify-self: start;
+  }
+}
