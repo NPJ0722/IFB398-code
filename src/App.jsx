@@ -602,7 +602,53 @@ function Schedule({
 }
 function Series({go,eventSeries,onSelectSeries}){const sampleCards=[['Strong Start','3 of 6 sessions','9 participants',50,'purple'],['Balance & Mobility','1 of 4 sessions','12 participants',25,'blue'],['Healthy Back Program','Draft','Starts 5 October',0,'green']];return <Page title="Event Series" subtitle="Create and track multi-session programs." action="New event series" onAction={()=>go('create-series')}><div className="series-grid">{eventSeries.map(series=>{const dated=series.sessions.filter(session=>session.date);const progress=series.status==='draft'?'Draft':`${dated.length} session${dated.length===1?'':'s'}`;return <article className="series-card green" key={series.id}><small>EVENT SERIES</small><h2>{series.name}</h2><strong>{progress}</strong><div className="progress"><i style={{width:series.status==='draft'?'0%':'100%'}}/></div><p>{series.location} · Capacity {series.capacity||'—'}</p><button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>View details</button></article>})}{eventSeries.length===0&&sampleCards.map(([n,status,meta,p,t])=><article className={`series-card ${t}`} key={n}><small>EVENT SERIES</small><h2>{n}</h2><strong>{status}</strong><div className="progress"><i style={{width:`${p}%`}}/></div><p>{meta}</p><button onClick={()=>go('schedule')}>View schedule</button></article>)}</div><h2 className="section-title">Upcoming sessions</h2><section className="panel upcoming-list">{eventSeries.flatMap(series=>series.sessions.filter(session=>session.date&&session.status!=='cancelled').map(session=><div className="upcoming-row" key={session.id}><strong>{session.date}</strong><span><b>{series.name}</b><small>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location}</small></span></div>))}{eventSeries.length===0&&<div className="appointment-empty">Create an event series to see its sessions here.</div>}</section></Page>}
 
-function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onRemoveSession}){if(!series)return <Page title="Event Series" subtitle="Series not found."><button className="secondary-button" onClick={()=>go('series')}>Back to Event Series</button></Page>;const [editing,setEditing]=useState(null);const [adding,setAdding]=useState(false);const [draft,setDraft]=useState({date:'',startTime:'09:00',endTime:'10:00'});const [scope,setScope]=useState('one');const [error,setError]=useState('');const openEdit=session=>{setEditing(session);setDraft({date:session.date,startTime:session.startTime,endTime:session.endTime});setScope('one');setError('')};const validate=()=>{if(!draft.date||!draft.startTime||!draft.endTime){setError('Date, start time and end time are required.');return false}if(draft.endTime<=draft.startTime){setError('End time must be later than start time.');return false}return true};const saveEdit=()=>{if(!validate())return;onEditSession(series.id,editing.id,draft,scope);setEditing(null)};const add=()=>{if(!validate())return;onAddSession(series.id,draft);setAdding(false);setDraft({date:'',startTime:'09:00',endTime:'10:00'})};return <main className="form-page"><button className="back-link" onClick={()=>go('series')}>‹ Event Series</button><Header title={series.name} subtitle={series.description||'Event series details and sessions.'}/><section className="form-card wide-form"><div className="series-detail-summary"><div><small>STATUS</small><strong>{series.status==='draft'?'Draft':'Published'}</strong></div><div><small>LOCATION</small><strong>{series.location}</strong></div><div><small>CAPACITY</small><strong>{series.capacity||'—'}</strong></div><div><small>PRICE</small><strong>{series.price? `$${series.price}`:'Free / not set'}</strong></div></div><h2>Sessions</h2>{series.sessions.filter(session=>session.date).length===0&&<div className="series-empty">No dates have been confirmed yet. Add a session when the schedule is ready.</div>}<div className="series-session-list">{series.sessions.filter(session=>session.date).map((session,index)=><article className={`series-session-item ${session.status==='cancelled'?'cancelled':''}`} key={session.id}><div><small>SESSION {index+1}</small><strong>{session.date}</strong><span>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location}</span>{session.status==='cancelled'&&<em>Cancelled</em>}</div><div className="session-actions"><button className="secondary-button" onClick={()=>openEdit(session)}>Edit</button>{session.status!=='cancelled'&&<button className="secondary-button" onClick={()=>{if(window.confirm('Cancel this session? It will remain in the series as cancelled.'))onCancelSession(series.id,session.id)}}>Cancel</button>}<button className="danger-button" onClick={()=>{if(window.confirm('Remove this session permanently? This cannot be undone.'))onRemoveSession(series.id,session.id)}}>Remove</button></div></article>)}</div><button className="add-outline" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button></section>{(editing||adding)&&<div className="modal-backdrop" onMouseDown={()=>{setEditing(null);setAdding(false)}}><section className="activity-modal session-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-heading"><div><h2>{adding?'Add Session':'Edit Session'}</h2><p>{adding?'Add another dated session to this series.':'Choose whether this change affects one session or the whole series.'}</p></div><button className="icon-button" onClick={()=>{setEditing(null);setAdding(false)}}><X size={18}/></button></div>{editing&&<Field label="Apply changes to"><div className="scope-options"><label><input type="radio" name="scope" checked={scope==='one'} onChange={()=>setScope('one')}/> This session only</label><label><input type="radio" name="scope" checked={scope==='series'} onChange={()=>setScope('series')}/> Whole series</label></div></Field>}<Field label="Date *"><input type="date" value={draft.date} onChange={e=>{setDraft(current=>({...current,date:e.target.value}));setError('')}}/></Field><div className="two-cols"><Field label="Start time *"><input type="time" value={draft.startTime} onChange={e=>{setDraft(current=>({...current,startTime:e.target.value}));setError('')}}/></Field><Field label="End time *"><input type="time" value={draft.endTime} onChange={e=>{setDraft(current=>({...current,endTime:e.target.value}));setError('')}}/></Field></div>{editing&&scope==='series'&&<InfoBox title="Whole series edit">The time change will apply to every active session. The selected date remains specific to this session.</InfoBox>}{error&&<p className="form-error">{error}</p>}<div className="form-actions"><button className="secondary-button" onClick={()=>{setEditing(null);setAdding(false)}}>Cancel</button><button className="primary-button" onClick={adding?add:saveEdit}>Save Changes</button></div></section></div>}</main>}
+function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onRemoveSession}){
+  if(!series)return <Page title="Event Series" subtitle="Series not found."><button className="secondary-button" onClick={()=>go('series')}>Back to Event Series</button></Page>;
+  const [editing,setEditing]=useState(null);
+  const [adding,setAdding]=useState(false);
+  const [draft,setDraft]=useState({date:'',startTime:'09:00',endTime:'10:00'});
+  const [scope,setScope]=useState('one');
+  const [error,setError]=useState('');
+  const datedSessions=series.sessions.filter(session=>session.date);
+  const activeSessions=datedSessions.filter(session=>session.status!=='cancelled');
+  const openEdit=session=>{setEditing(session);setDraft({date:session.date,startTime:session.startTime,endTime:session.endTime});setScope('one');setError('')};
+  const validate=()=>{if(!draft.date||!draft.startTime||!draft.endTime){setError('Date, start time and end time are required.');return false}if(draft.endTime<=draft.startTime){setError('End time must be later than start time.');return false}return true};
+  const saveEdit=async()=>{if(!validate())return;const result=await onEditSession(series.id,editing.id,draft,scope);if(result?.ok!==false)setEditing(null)};
+  const add=async()=>{if(!validate())return;const result=await onAddSession(series.id,draft);if(result?.ok!==false){setAdding(false);setDraft({date:'',startTime:'09:00',endTime:'10:00'})}};
+  const remove=async(sessionId)=>{if(!window.confirm('Remove this session permanently? If it is the last session in a published series, the series will also be removed.'))return;await onRemoveSession(series.id,sessionId)};
+  return <main className="form-page series-details-page">
+    <button className="back-link" onClick={()=>go('series')}>‹ Event Series</button>
+    <Header title={series.name} subtitle={series.description||'Event series details and sessions.'}/>
+    <section className="form-card wide-form series-overview-card">
+      <div className="series-overview-head">
+        <div>
+          <span className={`series-status-chip ${series.status==='draft'?'draft':'published'}`}>{series.status==='draft'?'Draft':'Published'}</span>
+          <p className="series-overview-copy">{series.status==='draft'?'Add dates when the schedule is ready.':'Manage the series information and individual sessions.'}</p>
+        </div>
+        <button className="primary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button>
+      </div>
+      <div className="series-detail-summary">
+        <div><small>LOCATION</small><strong>{series.location||'Not set'}</strong></div>
+        <div><small>CAPACITY</small><strong>{series.capacity||'—'}</strong></div>
+        <div><small>PRICE</small><strong>{series.price? `$${series.price}`:'Free / not set'}</strong></div>
+        <div><small>ACTIVE SESSIONS</small><strong>{activeSessions.length}</strong></div>
+      </div>
+    </section>
+    <section className="form-card wide-form series-sessions-card">
+      <div className="series-section-heading">
+        <div><h2>Sessions</h2><p>{datedSessions.length? 'Edit, cancel or permanently remove individual sessions.':'No dates have been confirmed yet.'}</p></div>
+        <span>{datedSessions.length} total</span>
+      </div>
+      {datedSessions.length===0&&<div className="series-empty"><strong>No sessions yet</strong><p>Add a dated session when the schedule is ready.</p><button className="add-outline" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button></div>}
+      <div className="series-session-list">{datedSessions.map((session,index)=><article className={`series-session-item ${session.status==='cancelled'?'cancelled':''}`} key={session.id}>
+        <div className="series-session-main"><small>SESSION {index+1}</small><strong>{session.date}</strong><span>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location||'Location not set'}</span>{session.status==='cancelled'&&<em>Cancelled</em>}</div>
+        <div className="session-actions"><button className="secondary-button" onClick={()=>openEdit(session)}>Edit</button>{session.status!=='cancelled'&&<button className="secondary-button" onClick={()=>{if(window.confirm('Cancel this session? It will remain in the series as cancelled.'))onCancelSession(series.id,session.id)}}>Cancel</button>}<button className="danger-button" onClick={()=>remove(session.id)}>Remove</button></div>
+      </article>)}</div>
+      {datedSessions.length>0&&<button className="add-outline" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add another session</button>}
+    </section>
+    {(editing||adding)&&<div className="modal-backdrop" onMouseDown={()=>{setEditing(null);setAdding(false)}}><section className="activity-modal session-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-heading"><div><h2>{adding?'Add Session':'Edit Session'}</h2><p>{adding?'Add another dated session to this series.':'Choose whether this change affects one session or the whole series.'}</p></div><button className="icon-button" onClick={()=>{setEditing(null);setAdding(false)}}><X size={18}/></button></div>{editing&&<Field label="Apply changes to"><div className="scope-options"><label><input type="radio" name="scope" checked={scope==='one'} onChange={()=>setScope('one')}/> This session only</label><label><input type="radio" name="scope" checked={scope==='series'} onChange={()=>setScope('series')}/> Whole series</label></div></Field>}<Field label="Date *"><input type="date" value={draft.date} onChange={e=>{setDraft(current=>({...current,date:e.target.value}));setError('')}}/></Field><div className="two-cols"><Field label="Start time *"><input type="time" value={draft.startTime} onChange={e=>{setDraft(current=>({...current,startTime:e.target.value}));setError('')}}/></Field><Field label="End time *"><input type="time" value={draft.endTime} onChange={e=>{setDraft(current=>({...current,endTime:e.target.value}));setError('')}}/></Field></div>{editing&&scope==='series'&&<InfoBox title="Whole series edit">The time change will apply to every active session. The selected date remains specific to this session.</InfoBox>}{error&&<p className="form-error">{error}</p>}<div className="form-actions"><button className="secondary-button" onClick={()=>{setEditing(null);setAdding(false)}}>Cancel</button><button className="primary-button" onClick={adding?add:saveEdit}>Save Changes</button></div></section></div>}
+  </main>
+}
 function Appointments({
   activities,
   clients,
@@ -1617,21 +1663,29 @@ export default function App() {
 
   const removeSeriesSession = async (seriesId, sessionId) => {
     try {
-      await readApiResponse(
+      const result = await readApiResponse(
         await fetch(`${EVENT_SERIES_API}/${seriesId}/sessions/${sessionId}`, {
           method: "DELETE",
         }),
       );
-      setEventSeries((current) =>
-        current.map((series) =>
-          series.id === seriesId
-            ? { ...series, sessions: series.sessions.filter((session) => session.id !== sessionId) }
-            : series,
-        ),
-      );
+      if (result?.seriesDeleted) {
+        setEventSeries((current) => current.filter((series) => series.id !== seriesId));
+        setSelectedSeriesId(null);
+        await refreshSchedule();
+        setNotice("Last session removed. The published event series was removed as well.");
+        go("series");
+        return { ok: true, seriesDeleted: true };
+      }
+      if (result?.series) {
+        setEventSeries((current) =>
+          current.map((series) => series.id === seriesId ? result.series : series),
+        );
+      } else {
+        await loadEventSeries();
+      }
       await refreshSchedule();
       setNotice("Session removed.");
-      return { ok: true };
+      return { ok: true, seriesDeleted: false };
     } catch (error) {
       console.error(error);
       setNotice("Session could not be removed from the database.");
