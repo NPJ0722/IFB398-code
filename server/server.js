@@ -1261,6 +1261,79 @@ app.post("/api/event-series", (req, res) => {
   }
 });
 
+app.put("/api/event-series/:id", (req, res) => {
+  try {
+    const existing = db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Event series not found" });
+    if (!req.body.name || !String(req.body.name).trim()) {
+      return res.status(400).json({ error: "Series name is required" });
+    }
+
+    const update = db.transaction(() => {
+      db.prepare(`
+        UPDATE event_series
+        SET name = ?, description = ?, instructor = ?, location = ?, capacity = ?, price = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        String(req.body.name).trim(),
+        req.body.description || null,
+        req.body.instructor || null,
+        req.body.location || null,
+        Number(req.body.capacity) || 0,
+        Number(req.body.price) || 0,
+        req.params.id,
+      );
+
+      const sessionRows = db.prepare(
+        "SELECT activity_id FROM event_series_sessions WHERE series_id = ? AND activity_id IS NOT NULL",
+      ).all(req.params.id);
+      const activityUpdate = db.prepare(`
+        UPDATE schedule_activities
+        SET title = ?, location = ?, meta = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
+      sessionRows.forEach((session) => {
+        activityUpdate.run(
+          String(req.body.name).trim(),
+          req.body.location || null,
+          `Event Series · ${req.body.location || "Location not set"}`,
+          session.activity_id,
+        );
+      });
+    });
+    update();
+
+    res.json(seriesFromRow(db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.id)));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to update event series" });
+  }
+});
+
+app.delete("/api/event-series/:id", (req, res) => {
+  try {
+    const existing = db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.id);
+    if (!existing) return res.status(404).json({ error: "Event series not found" });
+
+    const remove = db.transaction(() => {
+      const sessions = db.prepare(
+        "SELECT activity_id FROM event_series_sessions WHERE series_id = ? AND activity_id IS NOT NULL",
+      ).all(req.params.id);
+      const deleteActivity = db.prepare("DELETE FROM schedule_activities WHERE id = ?");
+      sessions.forEach((session) => deleteActivity.run(session.activity_id));
+      db.prepare("DELETE FROM event_series_sessions WHERE series_id = ?").run(req.params.id);
+      db.prepare("DELETE FROM event_series WHERE id = ?").run(req.params.id);
+    });
+    remove();
+
+    res.status(204).end();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to remove event series" });
+  }
+});
+
 app.post("/api/event-series/:id/sessions", (req, res) => {
   try {
     const series = db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.id);
