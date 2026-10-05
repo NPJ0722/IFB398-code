@@ -602,20 +602,60 @@ function Schedule({
 }
 function Series({go,eventSeries,onSelectSeries}){const sampleCards=[['Strong Start','3 of 6 sessions','9 participants',50,'purple'],['Balance & Mobility','1 of 4 sessions','12 participants',25,'blue'],['Healthy Back Program','Draft','Starts 5 October',0,'green']];return <Page title="Event Series" subtitle="Create and track multi-session programs." action="New event series" onAction={()=>go('create-series')}><div className="series-grid">{eventSeries.map(series=>{const dated=series.sessions.filter(session=>session.date);const progress=series.status==='draft'?'Draft':`${dated.length} session${dated.length===1?'':'s'}`;return <article className="series-card green" key={series.id}><small>EVENT SERIES</small><h2>{series.name}</h2><strong>{progress}</strong><div className="progress"><i style={{width:series.status==='draft'?'0%':'100%'}}/></div><p>{series.location} · Capacity {series.capacity||'—'}</p><button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>View details</button></article>})}{eventSeries.length===0&&sampleCards.map(([n,status,meta,p,t])=><article className={`series-card ${t}`} key={n}><small>EVENT SERIES</small><h2>{n}</h2><strong>{status}</strong><div className="progress"><i style={{width:`${p}%`}}/></div><p>{meta}</p><button onClick={()=>go('schedule')}>View schedule</button></article>)}</div><h2 className="section-title">Upcoming sessions</h2><section className="panel upcoming-list">{eventSeries.flatMap(series=>series.sessions.filter(session=>session.date&&session.status!=='cancelled').map(session=><div className="upcoming-row" key={session.id}><strong>{session.date}</strong><span><b>{series.name}</b><small>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location}</small></span></div>))}{eventSeries.length===0&&<div className="appointment-empty">Create an event series to see its sessions here.</div>}</section></Page>}
 
-function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onRemoveSession}){
+function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onRemoveSession,onUpdateSeries,onDeleteSeries}){
   if(!series)return <Page title="Event Series" subtitle="Series not found."><button className="secondary-button" onClick={()=>go('series')}>Back to Event Series</button></Page>;
   const [editing,setEditing]=useState(null);
   const [adding,setAdding]=useState(false);
+  const [editingSeries,setEditingSeries]=useState(false);
   const [draft,setDraft]=useState({date:'',startTime:'09:00',endTime:'10:00'});
+  const [seriesDraft,setSeriesDraft]=useState({
+    name:series.name||'',
+    description:series.description||'',
+    instructor:series.instructor||'Claire',
+    location:series.location||'Studio A',
+    capacity:String(series.capacity||12),
+    price:series.price?String(series.price):'',
+  });
   const [scope,setScope]=useState('one');
   const [error,setError]=useState('');
   const datedSessions=series.sessions.filter(session=>session.date);
   const activeSessions=datedSessions.filter(session=>session.status!=='cancelled');
+
   const openEdit=session=>{setEditing(session);setDraft({date:session.date,startTime:session.startTime,endTime:session.endTime});setScope('one');setError('')};
   const validate=()=>{if(!draft.date||!draft.startTime||!draft.endTime){setError('Date, start time and end time are required.');return false}if(draft.endTime<=draft.startTime){setError('End time must be later than start time.');return false}return true};
   const saveEdit=async()=>{if(!validate())return;const result=await onEditSession(series.id,editing.id,draft,scope);if(result?.ok!==false)setEditing(null)};
   const add=async()=>{if(!validate())return;const result=await onAddSession(series.id,draft);if(result?.ok!==false){setAdding(false);setDraft({date:'',startTime:'09:00',endTime:'10:00'})}};
   const remove=async(sessionId)=>{if(!window.confirm('Remove this session permanently? If it is the last session in a published series, the series will also be removed.'))return;await onRemoveSession(series.id,sessionId)};
+  const openSeriesEdit=()=>{
+    setSeriesDraft({
+      name:series.name||'',
+      description:series.description||'',
+      instructor:series.instructor||'Claire',
+      location:series.location||'Studio A',
+      capacity:String(series.capacity||12),
+      price:series.price?String(series.price):'',
+    });
+    setError('');
+    setEditingSeries(true);
+  };
+  const saveSeries=async()=>{
+    if(!seriesDraft.name.trim()){setError('Series name is required.');return}
+    const result=await onUpdateSeries(series.id,{
+      name:seriesDraft.name.trim(),
+      description:seriesDraft.description.trim(),
+      instructor:seriesDraft.instructor,
+      location:seriesDraft.location,
+      capacity:Number(seriesDraft.capacity)||0,
+      price:Number(seriesDraft.price)||0,
+    });
+    if(result?.ok!==false)setEditingSeries(false);
+  };
+  const deleteSeries=async()=>{
+    if(!window.confirm('Remove this entire event series and all of its sessions? This cannot be undone.'))return;
+    const result=await onDeleteSeries(series.id);
+    if(result?.ok!==false)go('series');
+  };
+
   return <main className="form-page series-details-page">
     <button className="back-link" onClick={()=>go('series')}>‹ Event Series</button>
     <Header title={series.name} subtitle={series.description||'Event series details and sessions.'}/>
@@ -625,7 +665,11 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
           <span className={`series-status-chip ${series.status==='draft'?'draft':'published'}`}>{series.status==='draft'?'Draft':'Published'}</span>
           <p className="series-overview-copy">{series.status==='draft'?'Add dates when the schedule is ready.':'Manage the series information and individual sessions.'}</p>
         </div>
-        <button className="primary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button>
+        <div className="series-overview-actions">
+          <button className="secondary-button" onClick={openSeriesEdit}>Edit Series</button>
+          <button className="danger-button" onClick={deleteSeries}>Remove Series</button>
+          <button className="primary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button>
+        </div>
       </div>
       <div className="series-detail-summary">
         <div><small>LOCATION</small><strong>{series.location||'Not set'}</strong></div>
@@ -634,6 +678,7 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
         <div><small>ACTIVE SESSIONS</small><strong>{activeSessions.length}</strong></div>
       </div>
     </section>
+
     <section className="form-card wide-form series-sessions-card">
       <div className="series-section-heading">
         <div><h2>Sessions</h2><p>{datedSessions.length? 'Edit, cancel or permanently remove individual sessions.':'No dates have been confirmed yet.'}</p></div>
@@ -646,6 +691,25 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
       </article>)}</div>
       {datedSessions.length>0&&<button className="add-outline" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add another session</button>}
     </section>
+
+    {editingSeries&&<div className="modal-backdrop" onMouseDown={()=>setEditingSeries(false)}>
+      <section className="activity-modal series-edit-modal" onMouseDown={e=>e.stopPropagation()}>
+        <div className="modal-heading"><div><h2>Edit Event Series</h2><p>Update the series information and save your changes.</p></div><button className="icon-button" onClick={()=>setEditingSeries(false)}><X size={18}/></button></div>
+        <Field label="Series name *"><input value={seriesDraft.name} onChange={e=>{setSeriesDraft(current=>({...current,name:e.target.value}));setError('')}}/></Field>
+        <Field label="Description"><textarea value={seriesDraft.description} onChange={e=>setSeriesDraft(current=>({...current,description:e.target.value}))}/></Field>
+        <div className="two-cols">
+          <Field label="Instructor"><select value={seriesDraft.instructor} onChange={e=>setSeriesDraft(current=>({...current,instructor:e.target.value}))}><option>Claire</option><option>Jessie Ni</option></select></Field>
+          <Field label="Location"><select value={seriesDraft.location} onChange={e=>setSeriesDraft(current=>({...current,location:e.target.value}))}><option>Studio A</option><option>Studio B</option><option>Online</option></select></Field>
+        </div>
+        <div className="two-cols">
+          <Field label="Capacity"><input type="number" min="1" value={seriesDraft.capacity} onChange={e=>setSeriesDraft(current=>({...current,capacity:e.target.value}))}/></Field>
+          <Field label="Program price ($)"><input type="number" min="0" step="0.01" value={seriesDraft.price} onChange={e=>setSeriesDraft(current=>({...current,price:e.target.value}))}/></Field>
+        </div>
+        {error&&<p className="form-error">{error}</p>}
+        <div className="form-actions"><button className="secondary-button" onClick={()=>setEditingSeries(false)}>Cancel</button><button className="primary-button" onClick={saveSeries}>Save Changes</button></div>
+      </section>
+    </div>}
+
     {(editing||adding)&&<div className="modal-backdrop" onMouseDown={()=>{setEditing(null);setAdding(false)}}><section className="activity-modal session-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-heading"><div><h2>{adding?'Add Session':'Edit Session'}</h2><p>{adding?'Add another dated session to this series.':'Choose whether this change affects one session or the whole series.'}</p></div><button className="icon-button" onClick={()=>{setEditing(null);setAdding(false)}}><X size={18}/></button></div>{editing&&<Field label="Apply changes to"><div className="scope-options"><label><input type="radio" name="scope" checked={scope==='one'} onChange={()=>setScope('one')}/> This session only</label><label><input type="radio" name="scope" checked={scope==='series'} onChange={()=>setScope('series')}/> Whole series</label></div></Field>}<Field label="Date *"><input type="date" value={draft.date} onChange={e=>{setDraft(current=>({...current,date:e.target.value}));setError('')}}/></Field><div className="two-cols"><Field label="Start time *"><input type="time" value={draft.startTime} onChange={e=>{setDraft(current=>({...current,startTime:e.target.value}));setError('')}}/></Field><Field label="End time *"><input type="time" value={draft.endTime} onChange={e=>{setDraft(current=>({...current,endTime:e.target.value}));setError('')}}/></Field></div>{editing&&scope==='series'&&<InfoBox title="Whole series edit">The time change will apply to every active session. The selected date remains specific to this session.</InfoBox>}{error&&<p className="form-error">{error}</p>}<div className="form-actions"><button className="secondary-button" onClick={()=>{setEditing(null);setAdding(false)}}>Cancel</button><button className="primary-button" onClick={adding?add:saveEdit}>Save Changes</button></div></section></div>}
   </main>
 }
@@ -1693,6 +1757,45 @@ export default function App() {
     }
   };
 
+  const updateEventSeries = async (seriesId, updates) => {
+    try {
+      const saved = await readApiResponse(
+        await fetch(`${EVENT_SERIES_API}/${seriesId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        }),
+      );
+      setEventSeries((current) =>
+        current.map((series) => series.id === seriesId ? saved : series),
+      );
+      await refreshSchedule();
+      setNotice("Event series updated.");
+      return { ok: true, saved };
+    } catch (error) {
+      console.error(error);
+      setNotice("Event series could not be updated.");
+      return { ok: false, message: error.message };
+    }
+  };
+
+  const deleteEventSeries = async (seriesId) => {
+    try {
+      await readApiResponse(
+        await fetch(`${EVENT_SERIES_API}/${seriesId}`, { method: "DELETE" }),
+      );
+      setEventSeries((current) => current.filter((series) => series.id !== seriesId));
+      setSelectedSeriesId(null);
+      await refreshSchedule();
+      setNotice("Event series removed.");
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      setNotice("Event series could not be removed.");
+      return { ok: false, message: error.message };
+    }
+  };
+
   const saveEventSeries = async (series) => {
     try {
       const saved = await readApiResponse(
@@ -1780,7 +1883,7 @@ export default function App() {
       />
     );
   } else if (page === "series-details") {
-    view = <SeriesDetails go={go} series={eventSeries.find((series) => series.id === selectedSeriesId)} onAddSession={addSeriesSession} onEditSession={editSeriesSession} onCancelSession={cancelSeriesSession} onRemoveSession={removeSeriesSession} />;
+    view = <SeriesDetails go={go} series={eventSeries.find((series) => series.id === selectedSeriesId)} onAddSession={addSeriesSession} onEditSession={editSeriesSession} onCancelSession={cancelSeriesSession} onRemoveSession={removeSeriesSession} onUpdateSeries={updateEventSeries} onDeleteSeries={deleteEventSeries} />;
   } else if (page === "create-series") {
     view = <CreateSeries go={go} onSubmit={saveEventSeries} />;
   } else if (page === "add-client") {
