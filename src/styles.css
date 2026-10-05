@@ -1433,3 +1433,23 @@ main {
     flex-direction: column;
   }
 }
+
+.series-overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.series-edit-modal {
+  width: min(620px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+}
+.series-edit-modal .form-field:first-of-type {
+  margin-top: 22px;
+}
+@media (max-width: 760px) {
+  .series-overview-actions {
+    justify-content: flex-start;
+  }
+}
