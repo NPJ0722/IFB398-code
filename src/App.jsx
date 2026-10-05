@@ -660,31 +660,34 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
     <button className="back-link" onClick={()=>go('series')}>‹ Event Series</button>
     <Header title={series.name} subtitle={series.description||'Event series details and sessions.'}/>
     <section className="form-card wide-form series-overview-card">
-      <div className="series-overview-head">
-        <div>
+      <div className="series-status-row">
+        <div className="series-status-left">
+          <span className="series-status-label">SERIES STATUS</span>
           <span className={`series-status-chip ${series.status==='draft'?'draft':'published'}`}>{series.status==='draft'?'Draft':'Published'}</span>
-          <p className="series-overview-copy">{series.status==='draft'?'Add dates when the schedule is ready.':'Manage the series information and individual sessions.'}</p>
         </div>
         <div className="series-overview-actions">
           <button className="secondary-button" onClick={openSeriesEdit}>Edit Series</button>
           <button className="danger-button" onClick={deleteSeries}>Remove Series</button>
-          <button className="primary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button>
         </div>
       </div>
-      <div className="series-detail-summary">
-        <div><small>LOCATION</small><strong>{series.location||'Not set'}</strong></div>
-        <div><small>CAPACITY</small><strong>{series.capacity||'—'}</strong></div>
-        <div><small>PRICE</small><strong>{series.price? `$${series.price}`:'Free / not set'}</strong></div>
-        <div><small>ACTIVE SESSIONS</small><strong>{activeSessions.length}</strong></div>
+      <p className="series-status-description">{series.status==='draft'?'This series is saved as a draft. Add dates when the schedule is ready.':'This event series is active and available in the schedule.'}</p>
+      <div className="series-info-grid">
+        <div className="series-info-item"><span>LOCATION</span><strong>{series.location||'Not set'}</strong></div>
+        <div className="series-info-item"><span>CAPACITY</span><strong>{series.capacity||'—'}</strong></div>
+        <div className="series-info-item"><span>PRICE</span><strong>{series.price? `${series.price}`:'Free / not set'}</strong></div>
+        <div className="series-info-item"><span>SESSIONS</span><strong>{activeSessions.length}</strong></div>
       </div>
     </section>
 
     <section className="form-card wide-form series-sessions-card">
       <div className="series-section-heading">
-        <div><h2>Sessions</h2><p>{datedSessions.length? 'Edit, cancel or permanently remove individual sessions.':'No dates have been confirmed yet.'}</p></div>
-        <span>{datedSessions.length} total</span>
+        <div>
+          <h2>Sessions</h2>
+          <p>{datedSessions.length? 'Manage individual sessions in this event series.':'Add a date and time when the schedule is ready.'}</p>
+        </div>
+        <button className="primary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button>
       </div>
-      {datedSessions.length===0&&<div className="series-empty"><strong>No sessions yet</strong><p>Add a dated session when the schedule is ready.</p><button className="add-outline" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button></div>}
+      {datedSessions.length===0&&<div className="series-empty"><strong>No sessions scheduled yet</strong><p>Add a date and time when the schedule is ready.</p><button className="secondary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button></div>}
       <div className="series-session-list">{datedSessions.map((session,index)=><article className={`series-session-item ${session.status==='cancelled'?'cancelled':''}`} key={session.id}>
         <div className="series-session-main"><small>SESSION {index+1}</small><strong>{session.date}</strong><span>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location||'Location not set'}</span>{session.status==='cancelled'&&<em>Cancelled</em>}</div>
         <div className="session-actions"><button className="secondary-button" onClick={()=>openEdit(session)}>Edit</button>{session.status!=='cancelled'&&<button className="secondary-button" onClick={()=>{if(window.confirm('Cancel this session? It will remain in the series as cancelled.'))onCancelSession(series.id,session.id)}}>Cancel</button>}<button className="danger-button" onClick={()=>remove(session.id)}>Remove</button></div>
