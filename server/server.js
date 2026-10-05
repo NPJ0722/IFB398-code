@@ -1346,13 +1346,28 @@ app.delete("/api/event-series/:seriesId/sessions/:sessionId", (req, res) => {
   try {
     const session = db.prepare("SELECT * FROM event_series_sessions WHERE id = ? AND series_id = ?")
       .get(req.params.sessionId, req.params.seriesId);
-    if (!session) return res.status(404).json({ error: "Series session not found" });
+    const series = db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.seriesId);
+    if (!session || !series) return res.status(404).json({ error: "Series session not found" });
+
+    let seriesDeleted = false;
     const remove = db.transaction(() => {
       if (session.activity_id) db.prepare("DELETE FROM schedule_activities WHERE id = ?").run(session.activity_id);
       db.prepare("DELETE FROM event_series_sessions WHERE id = ?").run(session.id);
+
+      const remaining = db.prepare("SELECT COUNT(*) AS count FROM event_series_sessions WHERE series_id = ?")
+        .get(req.params.seriesId).count;
+      if (series.status === "published" && remaining === 0) {
+        db.prepare("DELETE FROM event_series WHERE id = ?").run(req.params.seriesId);
+        seriesDeleted = true;
+      }
     });
     remove();
-    res.status(204).end();
+
+    if (seriesDeleted) {
+      return res.json({ ok: true, seriesDeleted: true });
+    }
+    const savedSeries = db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.seriesId);
+    res.json({ ok: true, seriesDeleted: false, series: seriesFromRow(savedSeries) });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to remove series session" });
