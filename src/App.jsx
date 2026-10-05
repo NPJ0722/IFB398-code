@@ -79,6 +79,7 @@ const formatRange = (start) => {
     : `${MONTHS[start.getMonth()]} ${start.getDate()} – ${MONTHS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
 };
 const ACTIVITIES_API = "http://localhost:3001/api/activities";
+const EVENT_SERIES_API = "http://localhost:3001/api/event-series";
 const CLIENTS_API = "http://localhost:3001/api/clients";
 const APPOINTMENT_TYPES = [
   "Private Yoga",
@@ -599,56 +600,9 @@ function Schedule({
     </Page>
   );
 }
-function Series({ go }) {
-  const cards = [
-    ["Strong Start", "3 of 6 sessions", "9 participants", 50, "purple"],
-    ["Balance & Mobility", "1 of 4 sessions", "12 participants", 25, "blue"],
-    ["Healthy Back Program", "Draft", "Starts 5 October", 0, "green"],
-  ];
-  return (
-    <Page
-      title="Event Series"
-      subtitle="Create and track multi-session programs."
-      action="New event series"
-      onAction={() => go("create-series")}
-    >
-      <div className="series-grid">
-        {cards.map(([n, s, m, p, t]) => (
-          <article className={`series-card ${t}`} key={n}>
-            <small>EVENT SERIES</small>
-            <h2>{n}</h2>
-            <strong>{s}</strong>
-            <div className="progress">
-              <i style={{ width: `${p}%` }} />
-            </div>
-            <p>{m}</p>
-            <button onClick={() => go("schedule")}>View details</button>
-          </article>
-        ))}
-      </div>
-      <h2 className="section-title">Upcoming sessions</h2>
-      <section className="panel upcoming-list">
-        {[
-          ["16 Sep", "Strong Start · Session 3", "9:00–10:00 · Studio A"],
-          ["23 Sep", "Strong Start · Session 4", "9:00–10:00 · Studio A"],
-          [
-            "26 Sep",
-            "Balance & Mobility · Session 2",
-            "11:00–12:00 · Studio B",
-          ],
-        ].map((r) => (
-          <div className="upcoming-row" key={r[0] + r[1]}>
-            <strong>{r[0]}</strong>
-            <span>
-              <b>{r[1]}</b>
-              <small>{r[2]}</small>
-            </span>
-          </div>
-        ))}
-      </section>
-    </Page>
-  );
-}
+function Series({go,eventSeries,onSelectSeries}){const sampleCards=[['Strong Start','3 of 6 sessions','9 participants',50,'purple'],['Balance & Mobility','1 of 4 sessions','12 participants',25,'blue'],['Healthy Back Program','Draft','Starts 5 October',0,'green']];return <Page title="Event Series" subtitle="Create and track multi-session programs." action="New event series" onAction={()=>go('create-series')}><div className="series-grid">{eventSeries.map(series=>{const dated=series.sessions.filter(session=>session.date);const progress=series.status==='draft'?'Draft':`${dated.length} session${dated.length===1?'':'s'}`;return <article className="series-card green" key={series.id}><small>EVENT SERIES</small><h2>{series.name}</h2><strong>{progress}</strong><div className="progress"><i style={{width:series.status==='draft'?'0%':'100%'}}/></div><p>{series.location} · Capacity {series.capacity||'—'}</p><button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>View details</button></article>})}{eventSeries.length===0&&sampleCards.map(([n,status,meta,p,t])=><article className={`series-card ${t}`} key={n}><small>EVENT SERIES</small><h2>{n}</h2><strong>{status}</strong><div className="progress"><i style={{width:`${p}%`}}/></div><p>{meta}</p><button onClick={()=>go('schedule')}>View schedule</button></article>)}</div><h2 className="section-title">Upcoming sessions</h2><section className="panel upcoming-list">{eventSeries.flatMap(series=>series.sessions.filter(session=>session.date&&session.status!=='cancelled').map(session=><div className="upcoming-row" key={session.id}><strong>{session.date}</strong><span><b>{series.name}</b><small>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location}</small></span></div>))}{eventSeries.length===0&&<div className="appointment-empty">Create an event series to see its sessions here.</div>}</section></Page>}
+
+function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onRemoveSession}){if(!series)return <Page title="Event Series" subtitle="Series not found."><button className="secondary-button" onClick={()=>go('series')}>Back to Event Series</button></Page>;const [editing,setEditing]=useState(null);const [adding,setAdding]=useState(false);const [draft,setDraft]=useState({date:'',startTime:'09:00',endTime:'10:00'});const [scope,setScope]=useState('one');const [error,setError]=useState('');const openEdit=session=>{setEditing(session);setDraft({date:session.date,startTime:session.startTime,endTime:session.endTime});setScope('one');setError('')};const validate=()=>{if(!draft.date||!draft.startTime||!draft.endTime){setError('Date, start time and end time are required.');return false}if(draft.endTime<=draft.startTime){setError('End time must be later than start time.');return false}return true};const saveEdit=()=>{if(!validate())return;onEditSession(series.id,editing.id,draft,scope);setEditing(null)};const add=()=>{if(!validate())return;onAddSession(series.id,draft);setAdding(false);setDraft({date:'',startTime:'09:00',endTime:'10:00'})};return <main className="form-page"><button className="back-link" onClick={()=>go('series')}>‹ Event Series</button><Header title={series.name} subtitle={series.description||'Event series details and sessions.'}/><section className="form-card wide-form"><div className="series-detail-summary"><div><small>STATUS</small><strong>{series.status==='draft'?'Draft':'Published'}</strong></div><div><small>LOCATION</small><strong>{series.location}</strong></div><div><small>CAPACITY</small><strong>{series.capacity||'—'}</strong></div><div><small>PRICE</small><strong>{series.price? `$${series.price}`:'Free / not set'}</strong></div></div><h2>Sessions</h2>{series.sessions.filter(session=>session.date).length===0&&<div className="series-empty">No dates have been confirmed yet. Add a session when the schedule is ready.</div>}<div className="series-session-list">{series.sessions.filter(session=>session.date).map((session,index)=><article className={`series-session-item ${session.status==='cancelled'?'cancelled':''}`} key={session.id}><div><small>SESSION {index+1}</small><strong>{session.date}</strong><span>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location}</span>{session.status==='cancelled'&&<em>Cancelled</em>}</div><div className="session-actions"><button className="secondary-button" onClick={()=>openEdit(session)}>Edit</button>{session.status!=='cancelled'&&<button className="secondary-button" onClick={()=>{if(window.confirm('Cancel this session? It will remain in the series as cancelled.'))onCancelSession(series.id,session.id)}}>Cancel</button>}<button className="danger-button" onClick={()=>{if(window.confirm('Remove this session permanently? This cannot be undone.'))onRemoveSession(series.id,session.id)}}>Remove</button></div></article>)}</div><button className="add-outline" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button></section>{(editing||adding)&&<div className="modal-backdrop" onMouseDown={()=>{setEditing(null);setAdding(false)}}><section className="activity-modal session-modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-heading"><div><h2>{adding?'Add Session':'Edit Session'}</h2><p>{adding?'Add another dated session to this series.':'Choose whether this change affects one session or the whole series.'}</p></div><button className="icon-button" onClick={()=>{setEditing(null);setAdding(false)}}><X size={18}/></button></div>{editing&&<Field label="Apply changes to"><div className="scope-options"><label><input type="radio" name="scope" checked={scope==='one'} onChange={()=>setScope('one')}/> This session only</label><label><input type="radio" name="scope" checked={scope==='series'} onChange={()=>setScope('series')}/> Whole series</label></div></Field>}<Field label="Date *"><input type="date" value={draft.date} onChange={e=>{setDraft(current=>({...current,date:e.target.value}));setError('')}}/></Field><div className="two-cols"><Field label="Start time *"><input type="time" value={draft.startTime} onChange={e=>{setDraft(current=>({...current,startTime:e.target.value}));setError('')}}/></Field><Field label="End time *"><input type="time" value={draft.endTime} onChange={e=>{setDraft(current=>({...current,endTime:e.target.value}));setError('')}}/></Field></div>{editing&&scope==='series'&&<InfoBox title="Whole series edit">The time change will apply to every active session. The selected date remains specific to this session.</InfoBox>}{error&&<p className="form-error">{error}</p>}<div className="form-actions"><button className="secondary-button" onClick={()=>{setEditing(null);setAdding(false)}}>Cancel</button><button className="primary-button" onClick={adding?add:saveEdit}>Save Changes</button></div></section></div>}</main>}
 function Appointments({
   activities,
   clients,
@@ -911,7 +865,7 @@ function CreateScheduledActivity({
 }
 
 function BlockTime({ go, onSubmit, initial }) { const [form, setForm] = useState(() => initial ? { timeType: initial.timeType || 'Personal appointment', title: initial.title, date: initial.date, endDate: initial.date, startTime: initial.startTime || '14:00', endTime: initial.endTime || '16:00', repeat: initial.repeat || 'Does not repeat', reason: initial.reason || '', preventBookings: initial.preventBookings !== false } : { timeType: 'Personal appointment', title: '', date: toDateKey(new Date()), endDate: toDateKey(new Date()), startTime: '14:00', endTime: '16:00', repeat: 'Does not repeat', reason: '', preventBookings: true }); const [error, setError] = useState(''); const update = (field, value) => { setForm(current => ({ ...current, [field]: value, ...(field === 'date' && current.endDate < value ? { endDate: value } : {}) })); if ((field === 'title' && value.trim()) || field === 'date' || field === 'endDate' || field === 'startTime' || field === 'endTime') setError('') }; const submit = event => { event.preventDefault(); if (!form.title.trim()) { setError('Title is required. Please enter a title.'); return } if (!form.date || !form.endDate) { setError('Start date and end date are required.'); return } if (form.endDate < form.date) { setError('End date must be the same as or later than start date.'); return } if (!form.startTime || !form.endTime || form.endTime <= form.startTime) { setError('End time must be later than start time.'); return } onSubmit({ ...form, id: initial?.id, title: form.title.trim() }); go('schedule') }; return <main className="form-page"><button className="back-link" onClick={() => go('schedule')}>‹ Schedule</button><Header title={initial ? 'Edit blocked time' : 'Block personal or work time'} subtitle={initial ? 'Update this unavailable period.' : 'Add unavailable time to prevent clients from booking you.'} /><form className="form-card compact-form" onSubmit={submit} noValidate><Field label="Time type"><select value={form.timeType} onChange={e => update('timeType', e.target.value)}><option>Personal appointment</option><option>Administration work</option></select></Field><Field label="Title *"><input value={form.title} onChange={e => update('title', e.target.value)} placeholder="Enter a title" aria-required="true" /></Field><div className="two-cols"><Field label="Start date"><input type="date" value={form.date} onChange={e => update('date', e.target.value)} required /></Field><Field label="End date"><input type="date" value={form.endDate} min={form.date} onChange={e => update('endDate', e.target.value)} required /></Field></div><div className="two-cols"><Field label="Start time"><input type="time" value={form.startTime} onChange={e => update('startTime', e.target.value)} required /></Field><Field label="End time"><input type="time" value={form.endTime} onChange={e => update('endTime', e.target.value)} required /></Field></div><Field label="Repeat"><select value={form.repeat} onChange={e => update('repeat', e.target.value)}><option>Does not repeat</option><option>Weekly</option></select></Field><Field label="Reason"><textarea value={form.reason} onChange={e => update('reason', e.target.value)} placeholder="e.g. Personal appointment or administration work" /></Field><label className="check-line"><input type="checkbox" checked={form.preventBookings} onChange={e => update('preventBookings', e.target.checked)} /> Prevent client bookings during this time</label>{error && <p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={() => go('schedule')}>Cancel</button><button type="submit" className="primary-button">{initial ? 'Save changes' : 'Block time'}</button></div></form></main> }
-function CreateSeries({ go }) { return <main className="form-page"><button className="back-link" onClick={() => go('series')}>‹ Event Series</button><Header title="Create Event Series" subtitle="Create a multi-session program and manage all sessions in one place." /><section className="form-card wide-form"><h2>Basic information</h2><Field label="Series name"><input defaultValue="Strong Start" /></Field><Field label="Description"><textarea defaultValue="A six-week beginner program focused on strength and balance." /></Field><div className="two-cols"><Field label="Instructor"><select><option>Claire</option></select></Field><Field label="Location"><select><option>Studio A</option></select></Field></div><h2>Sessions</h2><div className="session-editor"><small>SESSION 1</small><strong>Wednesday, 16 September 2026</strong><span>9:00–10:00 AM · Studio A</span><span>Capacity: 12 participants</span></div><button className="add-outline">＋ Add another session</button><h2>Booking settings</h2><div className="three-cols"><Field label="Capacity"><input defaultValue="12 participants" /></Field><Field label="Program price"><input defaultValue="$120 for 6 sessions" /></Field><Field label="Booking opens"><select><option>Immediately</option></select></Field></div><label className="check-line"><input type="checkbox" defaultChecked /> Allow clients to join after the series has started</label><p className="helper">Clients joining late will see the remaining sessions and adjusted availability.</p><div className="form-actions"><button className="secondary-button" onClick={() => go('series')}>Cancel</button><button className="primary-button" onClick={() => go('series')}>Create event series</button></div></section></main> }
+function CreateSeries({go,onSubmit}){const emptySession=()=>({id:`session-${Date.now()}-${Math.random().toString(36).slice(2)}`,date:'',startTime:'09:00',endTime:'10:00'});const [form,setForm]=useState({name:'',description:'',instructor:'Claire',location:'Studio A',capacity:'12',price:'',image:null,sessions:[emptySession()]});const [error,setError]=useState('');const update=(field,value)=>{setForm(current=>({...current,[field]:value}));setError('')};const updateSession=(id,field,value)=>{setForm(current=>({...current,sessions:current.sessions.map(session=>session.id===id?{...session,[field]:value}:session)}));setError('')};const addSession=()=>setForm(current=>({...current,sessions:[...current.sessions,emptySession()]}));const removeSession=id=>setForm(current=>({...current,sessions:current.sessions.filter(session=>session.id!==id)}));const save=async(status)=>{if(!form.name.trim()){setError('Series name is required.');return}const completed=form.sessions.filter(session=>session.date);if(status==='published'&&!completed.length){setError('Add at least one session date before creating the event series. You can save it as a draft instead.');return}if(completed.some(session=>!session.startTime||!session.endTime||session.endTime<=session.startTime)){setError('Each dated session must have an end time later than its start time.');return}const result=await onSubmit({...form,name:form.name.trim(),description:form.description.trim(),capacity:Number(form.capacity)||0,price:Number(form.price)||0,status,sessions:form.sessions.filter(session=>session.date||status==='draft')});if(result?.ok===false){setError(result.message||'Event series could not be saved.');return}go('series')};return <main className="form-page"><button className="back-link" onClick={()=>go('series')}>‹ Event Series</button><Header title="Create Event Series" subtitle="Create a multi-session program and manage all sessions in one place."/><section className="form-card wide-form"><h2>Basic information</h2><Field label="Series name *"><input value={form.name} onChange={e=>update('name',e.target.value)} placeholder="e.g. Strong Start"/></Field><Field label="Description"><textarea value={form.description} onChange={e=>update('description',e.target.value)} placeholder="Describe this event series"/></Field><Field label="Optional image"><input type="file" accept="image/*" onChange={e=>update('image',e.target.files?.[0]?.name||null)}/></Field><div className="two-cols"><Field label="Instructor"><select value={form.instructor} onChange={e=>update('instructor',e.target.value)}><option>Claire</option><option>Jessie Ni</option></select></Field><Field label="Location"><select value={form.location} onChange={e=>update('location',e.target.value)}><option>Studio A</option><option>Studio B</option><option>Online</option></select></Field></div><div className="two-cols"><Field label="Capacity"><input type="number" min="1" value={form.capacity} onChange={e=>update('capacity',e.target.value)}/></Field><Field label="Program price ($)"><input type="number" min="0" step="0.01" value={form.price} onChange={e=>update('price',e.target.value)} placeholder="e.g. 120"/></Field></div><h2>Sessions</h2><p className="helper session-helper">Add dates now, or save the series as a draft and add them later.</p><div className="session-list">{form.sessions.map((session,index)=><div className="session-editor" key={session.id}><div className="session-editor-heading"><small>SESSION {index+1}</small>{form.sessions.length>1&&<button type="button" className="session-remove" onClick={()=>removeSession(session.id)}>Remove</button>}</div><div className="three-cols"><Field label="Date"><input type="date" value={session.date} onChange={e=>updateSession(session.id,'date',e.target.value)}/></Field><Field label="Start time"><input type="time" value={session.startTime} onChange={e=>updateSession(session.id,'startTime',e.target.value)}/></Field><Field label="End time"><input type="time" value={session.endTime} onChange={e=>updateSession(session.id,'endTime',e.target.value)}/></Field></div></div>)}</div><button type="button" className="add-outline" onClick={addSession}>＋ Add another session</button>{error&&<p className="form-error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={()=>go('series')}>Cancel</button><button type="button" className="secondary-button" onClick={()=>save('draft')}>Save as Draft</button><button type="button" className="primary-button" onClick={()=>save('published')}>Create Event Series</button></div></section></main>}
 
 const STEPS = [
   "Client details",
@@ -1269,6 +1223,8 @@ function ClientProfile({ go, client }) {
 }
 
 export default function App() {
+  const [eventSeries, setEventSeries] = useState([]);
+  const [selectedSeriesId, setSelectedSeriesId] = useState(null);
   const currentWeek = useMemo(() => startOfWeek(new Date()), []);
   const [page, setPage] = useState("schedule");
   const [clients, setClients] = useState([]);
@@ -1303,6 +1259,17 @@ export default function App() {
         : {}),
     })),
   );
+
+  const loadEventSeries = async () => {
+    try {
+      const response = await fetch(EVENT_SERIES_API);
+      const data = await readApiResponse(response);
+      setEventSeries(data);
+    } catch (error) {
+      console.error("Failed to load event series:", error);
+      setNotice("Could not load event series from the database.");
+    }
+  };
 
   const loadClients = async () => {
     try {
@@ -1346,6 +1313,10 @@ export default function App() {
 
   useEffect(() => {
     loadClients();
+  }, []);
+
+  useEffect(() => {
+    loadEventSeries();
   }, []);
 
   useEffect(() => {
@@ -1574,6 +1545,124 @@ export default function App() {
     }
   };
 
+  const refreshSchedule = async () => {
+    const response = await fetch(ACTIVITIES_API);
+    const data = await readApiResponse(response);
+    setActivities(data);
+  };
+
+  const addSeriesSession = async (seriesId, data) => {
+    try {
+      const savedSeries = await readApiResponse(
+        await fetch(`${EVENT_SERIES_API}/${seriesId}/sessions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        }),
+      );
+      setEventSeries((current) =>
+        current.map((series) => series.id === seriesId ? savedSeries : series),
+      );
+      await refreshSchedule();
+      setNotice("Session added to the event series and schedule.");
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      setNotice("Session could not be saved to the database.");
+      return { ok: false, message: error.message };
+    }
+  };
+
+  const editSeriesSession = async (seriesId, sessionId, data, scope) => {
+    try {
+      const savedSeries = await readApiResponse(
+        await fetch(`${EVENT_SERIES_API}/${seriesId}/sessions/${sessionId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...data, scope }),
+        }),
+      );
+      setEventSeries((current) =>
+        current.map((series) => series.id === seriesId ? savedSeries : series),
+      );
+      await refreshSchedule();
+      setNotice(scope === "series" ? "Whole series times updated." : "Session updated.");
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      setNotice("Session could not be updated in the database.");
+      return { ok: false, message: error.message };
+    }
+  };
+
+  const cancelSeriesSession = async (seriesId, sessionId) => {
+    try {
+      const savedSeries = await readApiResponse(
+        await fetch(`${EVENT_SERIES_API}/${seriesId}/sessions/${sessionId}/cancel`, {
+          method: "PATCH",
+        }),
+      );
+      setEventSeries((current) =>
+        current.map((series) => series.id === seriesId ? savedSeries : series),
+      );
+      await refreshSchedule();
+      setNotice("Session cancelled and removed from the schedule.");
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      setNotice("Session could not be cancelled in the database.");
+      return { ok: false, message: error.message };
+    }
+  };
+
+  const removeSeriesSession = async (seriesId, sessionId) => {
+    try {
+      await readApiResponse(
+        await fetch(`${EVENT_SERIES_API}/${seriesId}/sessions/${sessionId}`, {
+          method: "DELETE",
+        }),
+      );
+      setEventSeries((current) =>
+        current.map((series) =>
+          series.id === seriesId
+            ? { ...series, sessions: series.sessions.filter((session) => session.id !== sessionId) }
+            : series,
+        ),
+      );
+      await refreshSchedule();
+      setNotice("Session removed.");
+      return { ok: true };
+    } catch (error) {
+      console.error(error);
+      setNotice("Session could not be removed from the database.");
+      return { ok: false, message: error.message };
+    }
+  };
+
+  const saveEventSeries = async (series) => {
+    try {
+      const saved = await readApiResponse(
+        await fetch(EVENT_SERIES_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(series),
+        }),
+      );
+      setEventSeries((current) => [saved, ...current]);
+      await refreshSchedule();
+      setNotice(
+        saved.status === "draft"
+          ? "Event series saved as draft."
+          : "Event series created and sessions added to the schedule.",
+      );
+      return { ok: true, saved };
+    } catch (error) {
+      console.error(error);
+      setNotice("Event series could not be saved to the database.");
+      return { ok: false, message: error.message };
+    }
+  };
+
   let view;
   if (page === "schedule") {
     view = (
@@ -1593,7 +1682,7 @@ export default function App() {
   } else if (page === "clients") {
     view = <Clients go={go} Page={Page} clients={clients} onSelectClient={setCurrentClient} />;
   } else if (page === "series") {
-    view = <Series go={go} />;
+    view = <Series go={go} eventSeries={eventSeries} onSelectSeries={setSelectedSeriesId} />;
   } else if (page === "appointments") {
     view = (
       <Appointments
@@ -1636,8 +1725,10 @@ export default function App() {
         activities={activities}
       />
     );
+  } else if (page === "series-details") {
+    view = <SeriesDetails go={go} series={eventSeries.find((series) => series.id === selectedSeriesId)} onAddSession={addSeriesSession} onEditSession={editSeriesSession} onCancelSession={cancelSeriesSession} onRemoveSession={removeSeriesSession} />;
   } else if (page === "create-series") {
-    view = <CreateSeries go={go} />;
+    view = <CreateSeries go={go} onSubmit={saveEventSeries} />;
   } else if (page === "add-client") {
     view = (
       <AddClient

@@ -58,6 +58,37 @@ db.exec(`
 
 
 // ======================================================
+// Event Series database (KAN-80 to KAN-86)
+// ======================================================
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS event_series (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    instructor TEXT,
+    location TEXT,
+    capacity INTEGER,
+    price REAL,
+    image TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS event_series_sessions (
+    id TEXT PRIMARY KEY,
+    series_id TEXT NOT NULL,
+    session_date TEXT,
+    start_time TEXT,
+    end_time TEXT,
+    status TEXT NOT NULL DEFAULT 'scheduled',
+    activity_id INTEGER,
+    FOREIGN KEY (series_id) REFERENCES event_series(id) ON DELETE CASCADE
+  );
+`);
+
+// ======================================================
 // Add new columns to an existing old database
 // ======================================================
 
@@ -1117,6 +1148,216 @@ app.delete(
 
   },
 );
+
+
+// ======================================================
+// Event Series API (KAN-80 to KAN-86)
+// ======================================================
+
+const seriesFromRow = (row) => {
+  const sessions = db.prepare(`
+    SELECT id, session_date, start_time, end_time, status, activity_id
+    FROM event_series_sessions
+    WHERE series_id = ?
+    ORDER BY CASE WHEN session_date IS NULL OR session_date = '' THEN 1 ELSE 0 END, session_date, start_time
+  `).all(row.id).map((session) => ({
+    id: session.id,
+    date: session.session_date || "",
+    startTime: session.start_time || "",
+    endTime: session.end_time || "",
+    status: session.status || "scheduled",
+    activityId: session.activity_id || undefined,
+  }));
+
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || "",
+    instructor: row.instructor || "",
+    location: row.location || "",
+    capacity: row.capacity || 0,
+    price: row.price || 0,
+    image: row.image || null,
+    status: row.status || "draft",
+    sessions,
+  };
+};
+
+const createSeriesActivity = (series, session, progressLabel) => {
+  const activity = {
+    type: "series",
+    title: series.name,
+    date: session.date,
+    startTime: session.startTime,
+    endTime: session.endTime,
+    time: `${session.startTime}–${session.endTime}`,
+    location: series.location || undefined,
+    meta: `Event Series · ${series.location || "Location not set"}`,
+    position: "morning",
+    capacity: progressLabel,
+    status: "Scheduled",
+  };
+  const result = db.prepare(`
+    INSERT INTO schedule_activities (
+      type, title, client_id, client_name, appointment_type,
+      activity_date, start_time, end_time, time_label, location,
+      meta, position, capacity, badge, time_type, repeat_setting,
+      reason, prevent_bookings, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(...activityValues(activity));
+  return Number(result.lastInsertRowid);
+};
+
+app.get("/api/event-series", (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM event_series ORDER BY created_at DESC").all();
+    res.json(rows.map(seriesFromRow));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to load event series" });
+  }
+});
+
+app.post("/api/event-series", (req, res) => {
+  try {
+    if (!req.body.name) return res.status(400).json({ error: "Series name is required" });
+    const id = req.body.id || `series-${Date.now()}`;
+    const sessions = Array.isArray(req.body.sessions) ? req.body.sessions : [];
+    if (req.body.status === "published" && !sessions.some((session) => session.date)) {
+      return res.status(400).json({ error: "A published series needs at least one dated session" });
+    }
+
+    const save = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO event_series (id, name, description, instructor, location, capacity, price, image, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, req.body.name, req.body.description || null, req.body.instructor || null,
+        req.body.location || null, req.body.capacity || 0, req.body.price || 0,
+        req.body.image || null, req.body.status || "draft");
+
+      const datedCount = sessions.filter((session) => session.date).length;
+      sessions.forEach((session, index) => {
+        const sessionId = session.id || `session-${Date.now()}-${index}`;
+        let activityId = null;
+        if (req.body.status === "published" && session.date) {
+          activityId = createSeriesActivity(
+            { ...req.body, id },
+            { ...session, id: sessionId },
+            `${index + 1} of ${datedCount}`,
+          );
+        }
+        db.prepare(`
+          INSERT INTO event_series_sessions (id, series_id, session_date, start_time, end_time, status, activity_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(sessionId, id, session.date || null, session.startTime || null,
+          session.endTime || null, session.status || "scheduled", activityId);
+      });
+    });
+    save();
+    res.status(201).json(seriesFromRow(db.prepare("SELECT * FROM event_series WHERE id = ?").get(id)));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to create event series" });
+  }
+});
+
+app.post("/api/event-series/:id/sessions", (req, res) => {
+  try {
+    const series = db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.id);
+    if (!series) return res.status(404).json({ error: "Event series not found" });
+    if (!req.body.date || !req.body.startTime || !req.body.endTime) {
+      return res.status(400).json({ error: "Date, start time and end time are required" });
+    }
+    const sessionId = req.body.id || `session-${Date.now()}`;
+    const activityId = createSeriesActivity(series, { ...req.body, id: sessionId }, null);
+    db.prepare(`
+      INSERT INTO event_series_sessions (id, series_id, session_date, start_time, end_time, status, activity_id)
+      VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
+    `).run(sessionId, req.params.id, req.body.date, req.body.startTime, req.body.endTime, activityId);
+    db.prepare("UPDATE event_series SET status = 'published', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(req.params.id);
+    res.status(201).json(seriesFromRow(db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.id)));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to add series session" });
+  }
+});
+
+app.put("/api/event-series/:seriesId/sessions/:sessionId", (req, res) => {
+  try {
+    const selected = db.prepare("SELECT * FROM event_series_sessions WHERE id = ? AND series_id = ?")
+      .get(req.params.sessionId, req.params.seriesId);
+    const series = db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.seriesId);
+    if (!selected || !series) return res.status(404).json({ error: "Series session not found" });
+
+    const targets = req.body.scope === "series"
+      ? db.prepare("SELECT * FROM event_series_sessions WHERE series_id = ? AND status <> 'cancelled'").all(req.params.seriesId)
+      : [selected];
+
+    const update = db.transaction(() => {
+      targets.forEach((session) => {
+        const isSelected = session.id === req.params.sessionId;
+        const date = isSelected ? req.body.date : session.session_date;
+        const startTime = req.body.startTime;
+        const endTime = req.body.endTime;
+        db.prepare("UPDATE event_series_sessions SET session_date = ?, start_time = ?, end_time = ? WHERE id = ?")
+          .run(date, startTime, endTime, session.id);
+        if (session.activity_id) {
+          const activity = {
+            type: "series", title: series.name, date, startTime, endTime,
+            time: `${startTime}–${endTime}`, location: series.location || undefined,
+            meta: `Event Series · ${series.location || "Location not set"}`,
+            position: "morning", status: "Scheduled",
+          };
+          db.prepare(`
+            UPDATE schedule_activities SET type=?, title=?, client_id=?, client_name=?, appointment_type=?,
+            activity_date=?, start_time=?, end_time=?, time_label=?, location=?, meta=?, position=?,
+            capacity=?, badge=?, time_type=?, repeat_setting=?, reason=?, prevent_bookings=?, status=?,
+            updated_at=CURRENT_TIMESTAMP WHERE id=?
+          `).run(...activityValues(activity), session.activity_id);
+        }
+      });
+    });
+    update();
+    res.json(seriesFromRow(db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.seriesId)));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to update series session" });
+  }
+});
+
+app.patch("/api/event-series/:seriesId/sessions/:sessionId/cancel", (req, res) => {
+  try {
+    const session = db.prepare("SELECT * FROM event_series_sessions WHERE id = ? AND series_id = ?")
+      .get(req.params.sessionId, req.params.seriesId);
+    if (!session) return res.status(404).json({ error: "Series session not found" });
+    const cancel = db.transaction(() => {
+      if (session.activity_id) db.prepare("DELETE FROM schedule_activities WHERE id = ?").run(session.activity_id);
+      db.prepare("UPDATE event_series_sessions SET status = 'cancelled', activity_id = NULL WHERE id = ?").run(session.id);
+    });
+    cancel();
+    res.json(seriesFromRow(db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.seriesId)));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to cancel series session" });
+  }
+});
+
+app.delete("/api/event-series/:seriesId/sessions/:sessionId", (req, res) => {
+  try {
+    const session = db.prepare("SELECT * FROM event_series_sessions WHERE id = ? AND series_id = ?")
+      .get(req.params.sessionId, req.params.seriesId);
+    if (!session) return res.status(404).json({ error: "Series session not found" });
+    const remove = db.transaction(() => {
+      if (session.activity_id) db.prepare("DELETE FROM schedule_activities WHERE id = ?").run(session.activity_id);
+      db.prepare("DELETE FROM event_series_sessions WHERE id = ?").run(session.id);
+    });
+    remove();
+    res.status(204).end();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to remove series session" });
+  }
+});
 
 
 // ======================================================
