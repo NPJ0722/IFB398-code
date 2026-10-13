@@ -1221,7 +1221,7 @@ app.get("/api/event-series", (req, res) => {
 app.post("/api/event-series", (req, res) => {
   try {
     if (!req.body.name) return res.status(400).json({ error: "Series name is required" });
-    const id = req.body.id || `series-${Date.now()}`;
+    const id = req.body.id || `series-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const sessions = Array.isArray(req.body.sessions) ? req.body.sessions : [];
     if (req.body.status === "published" && !sessions.some((session) => session.date)) {
       return res.status(400).json({ error: "A published series needs at least one dated session" });
