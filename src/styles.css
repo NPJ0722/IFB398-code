@@ -1822,3 +1822,79 @@ main {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Event Series classic card library layout */
+.series-category-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.series-management-card {
+  min-height: 330px;
+  padding: 28px;
+  border-width: 1.5px;
+  border-radius: 18px;
+}
+
+.series-management-card.active {
+  border-color: #ad5aae;
+  background: #fbf1fb;
+  color: #9f4fa4;
+}
+
+.series-management-card.upcoming {
+  border-color: #5f84b5;
+  background: #f2f6fc;
+  color: #567caf;
+}
+
+.series-management-card.draft {
+  border-color: #3d9a7f;
+  border-style: solid;
+  background: #eef8f4;
+  color: #319276;
+}
+
+.series-management-card h2 {
+  margin-top: 28px;
+  font-size: 25px;
+  line-height: 1.15;
+}
+
+.series-management-card > strong {
+  margin-top: 18px;
+  font-size: 17px;
+}
+
+.series-management-card .progress {
+  margin-top: 24px;
+}
+
+.series-management-card .series-card-meta {
+  margin-top: 24px;
+  min-height: 46px;
+  color: #71807b;
+  font-size: 12px;
+}
+
+.series-management-card .series-card-actions {
+  margin-top: 28px;
+}
+
+.series-management-card .series-card-actions button {
+  min-height: 48px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+@media (max-width: 1080px) {
+  .series-category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .series-category-grid {
+    grid-template-columns: 1fr;
+  }
+}
