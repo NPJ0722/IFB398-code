@@ -607,51 +607,136 @@ function Schedule({
   );
 }
 function Series({go,eventSeries,onSelectSeries,onViewSchedule}){
-  const sampleCards=[
-    ['Strong Start','3 of 6 sessions','9 participants',50,'purple'],
-    ['Balance & Mobility','1 of 4 sessions','12 participants',25,'blue'],
-    ['Healthy Back Program','Draft','Starts 5 October',0,'green'],
-  ];
-  return <Page title="Event Series" subtitle="Create and track multi-session programs." action="New event series" onAction={()=>go('create-series')}>
-    <div className="series-grid">
-      {sampleCards.map(([n,status,meta,p,t])=><article className={`series-card ${t}`} key={`sample-${n}`}>
+  const [openGroups,setOpenGroups]=useState({
+    active:true,
+    upcoming:true,
+    draft:false,
+  });
+
+  const todayKey=toDateKey(new Date());
+
+  const classifySeries=(series)=>{
+    if(series.status==='draft') return 'draft';
+    const dated=series.sessions
+      .filter(session=>session.date&&session.status!=='cancelled')
+      .sort((a,b)=>a.date.localeCompare(b.date));
+    if(!dated.length) return 'upcoming';
+
+    const hasPastOrToday=dated.some(session=>session.date<=todayKey);
+    const hasFuture=dated.some(session=>session.date>=todayKey);
+
+    if(hasPastOrToday&&hasFuture) return 'active';
+    if(dated[0].date>todayKey) return 'upcoming';
+    return 'active';
+  };
+
+  const groups={
+    active:eventSeries.filter(series=>classifySeries(series)==='active'),
+    upcoming:eventSeries.filter(series=>classifySeries(series)==='upcoming'),
+    draft:eventSeries.filter(series=>classifySeries(series)==='draft'),
+  };
+
+  const groupMeta={
+    active:{
+      title:'Published / Active',
+      description:'Published series currently running or still containing upcoming sessions.',
+    },
+    upcoming:{
+      title:'Upcoming',
+      description:'Published series that have not started yet.',
+    },
+    draft:{
+      title:'Draft',
+      description:'Series saved for later editing and not yet published.',
+    },
+  };
+
+  const toggleGroup=(key)=>setOpenGroups(current=>({...current,[key]:!current[key]}));
+
+  const renderCard=(series)=>{
+    const dated=series.sessions
+      .filter(session=>session.date&&session.status!=='cancelled')
+      .sort((a,b)=>a.date.localeCompare(b.date));
+    const category=classifySeries(series);
+    const nextSession=dated.find(session=>session.date>=todayKey);
+    const statusLabel=category==='draft'
+      ? 'Draft'
+      : category==='upcoming'
+        ? 'Upcoming'
+        : 'Published';
+
+    return <article className={`series-card series-management-card ${category}`} key={series.id}>
+      <div className="series-card-topline">
         <small>EVENT SERIES</small>
-        <h2>{n}</h2>
-        <strong>{status}</strong>
-        <div className="progress"><i style={{width:`${p}%`}}/></div>
-        <p>{meta}</p>
-        <button onClick={()=>go('schedule')}>View schedule</button>
-      </article>)}
-      {eventSeries.map((series,index)=>{
-        const dated=series.sessions.filter(session=>session.date);
-        const isDraft=series.status==='draft';
-        const cardTone=isDraft?'green':(index%2===0?'purple':'blue');
-        const progress=isDraft?'Draft':`${dated.length} session${dated.length===1?'':'s'}`;
-        const meta=isDraft
-          ? `${series.location||'Location not set'} · Draft`
-          : `${series.location||'Location not set'} · Capacity ${series.capacity||'—'}`;
-        return <article className={`series-card ${cardTone} ${isDraft?'draft-series':'published-series'}`} key={series.id}>
-          <small>EVENT SERIES</small>
-          <h2>{series.name}</h2>
-          <strong>{progress}</strong>
-          <div className="progress"><i style={{width:isDraft?'0%':'100%'}}/></div>
-          <p>{meta}</p>
-          <div className="series-card-actions">
-            <button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>View details</button>
-            {!isDraft&&dated.length>0&&<button onClick={()=>onViewSchedule(dated[0].date)}>View schedule</button>}
-          </div>
-        </article>
+        <span className={`series-list-status ${category}`}>{statusLabel}</span>
+      </div>
+      <h2>{series.name}</h2>
+      <strong>{dated.length} session{dated.length===1?'':'s'}</strong>
+      <div className="progress"><i style={{width:category==='draft'?'0%':'100%'}}/></div>
+      <div className="series-card-meta">
+        <span>{series.location||'Location not set'}</span>
+        <span>Capacity {series.capacity||'—'}</span>
+        {nextSession&&<span>Next: {nextSession.date}</span>}
+      </div>
+      <div className="series-card-actions">
+        <button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>
+          {category==='draft'?'Continue editing':'View details'}
+        </button>
+        {category!=='draft'&&dated.length>0&&
+          <button onClick={()=>onViewSchedule(nextSession?.date||dated[0].date)}>View schedule</button>}
+      </div>
+    </article>;
+  };
+
+  return <Page title="Event Series" subtitle="Create, organise and manage multi-session programs." action="New event series" onAction={()=>go('create-series')}>
+    <div className="series-management-toolbar">
+      <span>{eventSeries.length} total series</span>
+      <span>{groups.active.length} active</span>
+      <span>{groups.upcoming.length} upcoming</span>
+      <span>{groups.draft.length} draft</span>
+    </div>
+
+    <div className="series-category-list">
+      {['active','upcoming','draft'].map(key=>{
+        const items=groups[key];
+        const meta=groupMeta[key];
+        return <section className="series-category-section" key={key}>
+          <button className="series-category-header" onClick={()=>toggleGroup(key)} aria-expanded={openGroups[key]}>
+            <div>
+              <h2>{meta.title}</h2>
+              <p>{meta.description}</p>
+            </div>
+            <div className="series-category-count">
+              <span>{items.length}</span>
+              <ChevronRight className={openGroups[key]?'expanded':''} size={19}/>
+            </div>
+          </button>
+
+          {openGroups[key]&&
+            <div className="series-grid series-category-grid">
+              {items.length>0
+                ? items.map(renderCard)
+                : <div className="series-category-empty">No {meta.title.toLowerCase()} event series.</div>}
+            </div>}
+        </section>;
       })}
     </div>
+
     <h2 className="section-title">Upcoming sessions</h2>
     <section className="panel upcoming-list">
-      {eventSeries.flatMap(series=>series.sessions.filter(session=>session.date&&session.status!=='cancelled').map(session=><div className="upcoming-row" key={session.id}>
-        <strong>{session.date}</strong>
-        <span><b>{series.name}</b><small>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location}</small></span>
-      </div>))}
-      {eventSeries.flatMap(series=>series.sessions.filter(session=>session.date&&session.status!=='cancelled')).length===0&&<div className="appointment-empty">Create or publish an event series to see its sessions here.</div>}
+      {eventSeries.flatMap(series=>series.sessions
+        .filter(session=>session.date&&session.status!=='cancelled'&&session.date>=todayKey)
+        .map(session=><div className="upcoming-row" key={session.id}>
+          <strong>{session.date}</strong>
+          <span>
+            <b>{series.name}</b>
+            <small>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location}</small>
+          </span>
+        </div>))}
+      {eventSeries.flatMap(series=>series.sessions.filter(session=>session.date&&session.status!=='cancelled'&&session.date>=todayKey)).length===0&&
+        <div className="appointment-empty">No upcoming Event Series sessions.</div>}
     </section>
-  </Page>
+  </Page>;
 }
 
 function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onRemoveSession,onUpdateSeries,onDeleteSeries}){
