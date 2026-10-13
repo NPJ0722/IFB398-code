@@ -1652,3 +1652,173 @@ main {
 .series-card-actions button {
   width: 100%;
 }
+
+
+/* Event Series expandable management groups */
+.series-management-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 26px 0 18px;
+}
+
+.series-management-toolbar span {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: #5d6d67;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.series-category-list {
+  display: grid;
+  gap: 16px;
+}
+
+.series-category-section {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.series-category-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border: 0;
+  background: #fff;
+  color: var(--green-950);
+  text-align: left;
+  cursor: pointer;
+}
+
+.series-category-header:hover {
+  background: #f8fbfa;
+}
+
+.series-category-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.series-category-header p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.series-category-count {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.series-category-count span {
+  min-width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--green-100);
+  color: var(--green-700);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.series-category-count svg {
+  transition: transform .18s ease;
+}
+
+.series-category-count svg.expanded {
+  transform: rotate(90deg);
+}
+
+.series-category-grid {
+  padding: 0 24px 24px;
+}
+
+.series-management-card {
+  min-height: 250px;
+}
+
+.series-card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.series-list-status {
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+
+.series-list-status.active {
+  background: #e8f4ef;
+  color: #24735f;
+}
+
+.series-list-status.upcoming {
+  background: #eef3fb;
+  color: #4f6f9f;
+}
+
+.series-list-status.draft {
+  background: #fff4df;
+  color: #8a641c;
+}
+
+.series-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.series-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: auto;
+}
+
+.series-card-actions button:only-child {
+  grid-column: 1 / -1;
+}
+
+.series-category-empty {
+  grid-column: 1 / -1;
+  padding: 28px;
+  border: 1px dashed #cbd8d3;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .series-category-header {
+    align-items: flex-start;
+  }
+
+  .series-category-grid {
+    padding-inline: 16px;
+  }
+
+  .series-card-actions {
+    grid-template-columns: 1fr;
+  }
+}
