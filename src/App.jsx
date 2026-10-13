@@ -600,7 +600,50 @@ function Schedule({
     </Page>
   );
 }
-function Series({go,eventSeries,onSelectSeries}){const sampleCards=[['Strong Start','3 of 6 sessions','9 participants',50,'purple'],['Balance & Mobility','1 of 4 sessions','12 participants',25,'blue'],['Healthy Back Program','Draft','Starts 5 October',0,'green']];return <Page title="Event Series" subtitle="Create and track multi-session programs." action="New event series" onAction={()=>go('create-series')}><div className="series-grid">{eventSeries.map(series=>{const dated=series.sessions.filter(session=>session.date);const progress=series.status==='draft'?'Draft':`${dated.length} session${dated.length===1?'':'s'}`;return <article className="series-card green" key={series.id}><small>EVENT SERIES</small><h2>{series.name}</h2><strong>{progress}</strong><div className="progress"><i style={{width:series.status==='draft'?'0%':'100%'}}/></div><p>{series.location} · Capacity {series.capacity||'—'}</p><button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>View details</button></article>})}{eventSeries.length===0&&sampleCards.map(([n,status,meta,p,t])=><article className={`series-card ${t}`} key={n}><small>EVENT SERIES</small><h2>{n}</h2><strong>{status}</strong><div className="progress"><i style={{width:`${p}%`}}/></div><p>{meta}</p><button onClick={()=>go('schedule')}>View schedule</button></article>)}</div><h2 className="section-title">Upcoming sessions</h2><section className="panel upcoming-list">{eventSeries.flatMap(series=>series.sessions.filter(session=>session.date&&session.status!=='cancelled').map(session=><div className="upcoming-row" key={session.id}><strong>{session.date}</strong><span><b>{series.name}</b><small>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location}</small></span></div>))}{eventSeries.length===0&&<div className="appointment-empty">Create an event series to see its sessions here.</div>}</section></Page>}
+function Series({go,eventSeries,onSelectSeries}){
+  const sampleCards=[
+    ['Strong Start','3 of 6 sessions','9 participants',50,'purple'],
+    ['Balance & Mobility','1 of 4 sessions','12 participants',25,'blue'],
+    ['Healthy Back Program','Draft','Starts 5 October',0,'green'],
+  ];
+  return <Page title="Event Series" subtitle="Create and track multi-session programs." action="New event series" onAction={()=>go('create-series')}>
+    <div className="series-grid">
+      {sampleCards.map(([n,status,meta,p,t])=><article className={`series-card ${t}`} key={`sample-${n}`}>
+        <small>EVENT SERIES</small>
+        <h2>{n}</h2>
+        <strong>{status}</strong>
+        <div className="progress"><i style={{width:`${p}%`}}/></div>
+        <p>{meta}</p>
+        <button onClick={()=>go('schedule')}>View schedule</button>
+      </article>)}
+      {eventSeries.map((series,index)=>{
+        const dated=series.sessions.filter(session=>session.date);
+        const isDraft=series.status==='draft';
+        const cardTone=isDraft?'green':(index%2===0?'purple':'blue');
+        const progress=isDraft?'Draft':`${dated.length} session${dated.length===1?'':'s'}`;
+        const meta=isDraft
+          ? `${series.location||'Location not set'} · Draft`
+          : `${series.location||'Location not set'} · Capacity ${series.capacity||'—'}`;
+        return <article className={`series-card ${cardTone} ${isDraft?'draft-series':'published-series'}`} key={series.id}>
+          <small>EVENT SERIES</small>
+          <h2>{series.name}</h2>
+          <strong>{progress}</strong>
+          <div className="progress"><i style={{width:isDraft?'0%':'100%'}}/></div>
+          <p>{meta}</p>
+          <button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>View details</button>
+        </article>
+      })}
+    </div>
+    <h2 className="section-title">Upcoming sessions</h2>
+    <section className="panel upcoming-list">
+      {eventSeries.flatMap(series=>series.sessions.filter(session=>session.date&&session.status!=='cancelled').map(session=><div className="upcoming-row" key={session.id}>
+        <strong>{session.date}</strong>
+        <span><b>{series.name}</b><small>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location}</small></span>
+      </div>))}
+      {eventSeries.flatMap(series=>series.sessions.filter(session=>session.date&&session.status!=='cancelled')).length===0&&<div className="appointment-empty">Create or publish an event series to see its sessions here.</div>}
+    </section>
+  </Page>
+}
 
 function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onRemoveSession,onUpdateSeries,onDeleteSeries}){
   if(!series)return <Page title="Event Series" subtitle="Series not found."><button className="secondary-button" onClick={()=>go('series')}>Back to Event Series</button></Page>;
@@ -1812,7 +1855,11 @@ export default function App() {
           body: JSON.stringify(series),
         }),
       );
-      setEventSeries((current) => [saved, ...current]);
+      setEventSeries((current) =>
+        current.some((item) => item.id === saved.id)
+          ? current.map((item) => item.id === saved.id ? saved : item)
+          : [saved, ...current],
+      );
       await refreshSchedule();
       setNotice(
         saved.status === "draft"
