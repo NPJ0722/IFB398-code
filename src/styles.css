@@ -1590,3 +1590,32 @@ main {
     justify-content: flex-start;
   }
 }
+
+
+/* Event Series edit modal scrolling */
+.series-details-page .modal-backdrop {
+  overflow: hidden;
+}
+
+.series-details-page .series-edit-modal {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.series-details-page .series-edit-modal::-webkit-scrollbar {
+  width: 10px;
+}
+
+.series-details-page .series-edit-modal::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: #b9c8c3;
+  background-clip: padding-box;
+}
+
+.series-details-page .series-edit-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
