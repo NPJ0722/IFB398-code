@@ -679,22 +679,6 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
       </div>
     </section>
 
-    <section className="form-card wide-form series-sessions-card">
-      <div className="series-section-header">
-        <div>
-          <h2>Sessions</h2>
-          <p>Manage individual sessions in this event series.</p>
-        </div>
-        <button className="primary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button>
-      </div>
-      {datedSessions.length===0&&<div className="series-empty-state"><h3>No sessions scheduled yet</h3><p>Add a date and time when the schedule is ready.</p><button className="secondary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button></div>}
-      <div className="series-session-list">{datedSessions.map((session,index)=><article className={`series-session-item ${session.status==='cancelled'?'cancelled':''}`} key={session.id}>
-        <div className="series-session-main"><small>SESSION {index+1}</small><strong>{session.date}</strong><span>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location||'Location not set'}</span>{session.status==='cancelled'&&<em>Cancelled</em>}</div>
-        <div className="session-actions"><button className="secondary-button" onClick={()=>openEdit(session)}>Edit</button>{session.status!=='cancelled'&&<button className="secondary-button" onClick={()=>{if(window.confirm('Cancel this session? It will remain in the series as cancelled.'))onCancelSession(series.id,session.id)}}>Cancel</button>}<button className="danger-button" onClick={()=>remove(session.id)}>Remove</button></div>
-      </article>)}</div>
-      {datedSessions.length>0&&<button className="add-outline" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add another session</button>}
-    </section>
-
     {editingSeries&&<div className="modal-backdrop" onMouseDown={()=>setEditingSeries(false)}>
       <section className="activity-modal series-edit-modal" onMouseDown={e=>e.stopPropagation()}>
         <div className="modal-heading"><div><h2>Edit Event Series</h2><p>Update the series information and save your changes.</p></div><button className="icon-button" onClick={()=>setEditingSeries(false)}><X size={18}/></button></div>
