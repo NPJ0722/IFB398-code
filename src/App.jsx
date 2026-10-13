@@ -687,7 +687,7 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
         </div>
         <button className="primary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button>
       </div>
-      {datedSessions.length===0&&<div className="series-empty"><strong>No sessions scheduled yet</strong><p>Add a date and time when the schedule is ready.</p><button className="secondary-button" onClick={()=>{setAdding(true);setDraft({date:'',startTime:'09:00',endTime:'10:00'});setError('')}}>＋ Add Session</button></div>}
+      {datedSessions.length===0&&<div className="series-empty"><strong>No sessions scheduled yet</strong><p>Add a date and time using the Add Session button above.</p></div>}
       <div className="series-session-list">{datedSessions.map((session,index)=><article className={`series-session-item ${session.status==='cancelled'?'cancelled':''}`} key={session.id}>
         <div className="series-session-main"><small>SESSION {index+1}</small><strong>{session.date}</strong><span>{formatClock(session.startTime)}–{formatClock(session.endTime)} · {series.location||'Location not set'}</span>{session.status==='cancelled'&&<em>Cancelled</em>}</div>
         <div className="session-actions"><button className="secondary-button" onClick={()=>openEdit(session)}>Edit</button>{session.status!=='cancelled'&&<button className="secondary-button" onClick={()=>{if(window.confirm('Cancel this session? It will remain in the series as cancelled.'))onCancelSession(series.id,session.id)}}>Cancel</button>}<button className="danger-button" onClick={()=>remove(session.id)}>Remove</button></div>
@@ -696,26 +696,26 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
 
     {editingSeries&&<div className="modal-backdrop series-edit-backdrop" onMouseDown={()=>setEditingSeries(false)}>
       <section className="activity-modal series-edit-modal" onMouseDown={e=>e.stopPropagation()}>
-        <div className="modal-heading series-edit-heading">
+        <div className="modal-heading">
           <div>
             <h2>Edit Event Series</h2>
-            <p>Update the same core information used when creating this event series.</p>
+            <p>Update the event series information.</p>
           </div>
           <button className="icon-button" onClick={()=>setEditingSeries(false)} aria-label="Close"><X size={18}/></button>
         </div>
-        <div className="series-edit-form">
+        <div className="series-edit-content">
           <Field label="Series name *"><input value={seriesDraft.name} onChange={e=>{setSeriesDraft(current=>({...current,name:e.target.value}));setError('')}}/></Field>
           <Field label="Description"><textarea value={seriesDraft.description} onChange={e=>setSeriesDraft(current=>({...current,description:e.target.value}))}/></Field>
-          <div className="two-cols series-edit-grid">
+          <div className="two-cols">
             <Field label="Instructor"><select value={seriesDraft.instructor} onChange={e=>setSeriesDraft(current=>({...current,instructor:e.target.value}))}><option>Claire</option><option>Jessie Ni</option></select></Field>
             <Field label="Location"><select value={seriesDraft.location} onChange={e=>setSeriesDraft(current=>({...current,location:e.target.value}))}><option>Studio A</option><option>Studio B</option><option>Online</option></select></Field>
           </div>
-          <div className="two-cols series-edit-grid">
+          <div className="two-cols">
             <Field label="Capacity"><input type="number" min="1" value={seriesDraft.capacity} onChange={e=>setSeriesDraft(current=>({...current,capacity:e.target.value}))}/></Field>
             <Field label="Program price ($)"><input type="number" min="0" step="0.01" value={seriesDraft.price} onChange={e=>setSeriesDraft(current=>({...current,price:e.target.value}))}/></Field>
           </div>
           {error&&<p className="form-error">{error}</p>}
-          <div className="form-actions series-edit-actions"><button className="secondary-button" onClick={()=>setEditingSeries(false)}>Cancel</button><button className="primary-button" onClick={saveSeries}>Save Changes</button></div>
+          <div className="form-actions"><button className="secondary-button" onClick={()=>setEditingSeries(false)}>Cancel</button><button className="primary-button" onClick={saveSeries}>Save Changes</button></div>
         </div>
       </section>
     </div>}
