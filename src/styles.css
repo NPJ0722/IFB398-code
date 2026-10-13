@@ -1898,3 +1898,61 @@ main {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Event Series compact library cards */
+.series-category-grid {
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.series-management-card {
+  min-height: 240px;
+  padding: 20px;
+  border-radius: 16px;
+}
+
+.series-management-card h2 {
+  margin: 18px 0 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.series-management-card > strong {
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.series-management-card .progress {
+  margin-top: 16px;
+}
+
+.series-management-card .series-card-meta {
+  min-height: 34px;
+  margin-top: 16px;
+  gap: 6px 10px;
+  font-size: 10.5px;
+}
+
+.series-management-card .series-card-actions {
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.series-management-card .series-card-actions button {
+  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 11px;
+}
+
+@media (max-width: 1100px) {
+  .series-category-grid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .series-category-grid {
+    grid-template-columns: 1fr;
+  }
+}
