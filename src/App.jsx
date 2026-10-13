@@ -430,6 +430,7 @@ function Schedule({
   go,
   activities,
   clients,
+  focusDate,
   notice,
   clearNotice,
   onEditBlocked,
@@ -445,6 +446,11 @@ function Schedule({
   const [selectedBlocked, setSelectedBlocked] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
   const [dropDate, setDropDate] = useState(null);
+
+  useEffect(() => {
+    if (!focusDate) return;
+    setWeekStart(startOfWeek(new Date(`${focusDate}T00:00:00`)));
+  }, [focusDate]);
 
   const todayKey = toDateKey(new Date());
   const startKey = toDateKey(weekStart);
@@ -600,7 +606,7 @@ function Schedule({
     </Page>
   );
 }
-function Series({go,eventSeries,onSelectSeries}){
+function Series({go,eventSeries,onSelectSeries,onViewSchedule}){
   const sampleCards=[
     ['Strong Start','3 of 6 sessions','9 participants',50,'purple'],
     ['Balance & Mobility','1 of 4 sessions','12 participants',25,'blue'],
@@ -630,7 +636,10 @@ function Series({go,eventSeries,onSelectSeries}){
           <strong>{progress}</strong>
           <div className="progress"><i style={{width:isDraft?'0%':'100%'}}/></div>
           <p>{meta}</p>
-          <button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>View details</button>
+          <div className="series-card-actions">
+            <button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>View details</button>
+            {!isDraft&&dated.length>0&&<button onClick={()=>onViewSchedule(dated[0].date)}>View schedule</button>}
+          </div>
         </article>
       })}
     </div>
@@ -1387,6 +1396,7 @@ export default function App() {
   const [selectedSeriesId, setSelectedSeriesId] = useState(null);
   const currentWeek = useMemo(() => startOfWeek(new Date()), []);
   const [page, setPage] = useState("schedule");
+  const [scheduleFocusDate, setScheduleFocusDate] = useState(null);
   const [clients, setClients] = useState([]);
   const [currentClient, setCurrentClient] = useState(null);
   const [notice, setNotice] = useState("");
@@ -1485,6 +1495,12 @@ export default function App() {
 
   const go = (nextPage) => {
     setPage(nextPage);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const viewScheduleDate = (date) => {
+    setScheduleFocusDate(date || null);
+    setPage("schedule");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
