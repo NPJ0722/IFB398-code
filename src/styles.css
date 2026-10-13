@@ -1545,3 +1545,74 @@ main {
     padding: 22px;
   }
 }
+
+
+/* Event Series UI correction - single add action and create-form alignment */
+.series-details-page .series-empty {
+  min-height: 150px;
+  padding: 32px 24px;
+}
+
+.series-details-page .series-session-item {
+  padding: 18px 20px;
+}
+
+.series-details-page .series-session-main {
+  gap: 5px;
+}
+
+.series-details-page .session-actions {
+  align-items: center;
+}
+
+.series-edit-backdrop {
+  padding: 24px;
+}
+
+.series-edit-modal {
+  width: min(920px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 26px;
+}
+
+.series-edit-modal .modal-heading {
+  padding-bottom: 18px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.series-edit-content {
+  width: 100%;
+}
+
+.series-edit-content .form-field {
+  margin-bottom: 18px;
+}
+
+.series-edit-content .two-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.series-edit-content .form-field input,
+.series-edit-content .form-field select,
+.series-edit-content .form-field textarea {
+  min-height: auto;
+}
+
+.series-edit-content .form-field textarea {
+  min-height: 78px;
+}
+
+.series-edit-content .form-actions {
+  margin-top: 28px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+@media (max-width: 720px) {
+  .series-edit-content .two-cols {
+    grid-template-columns: 1fr;
+  }
+}
