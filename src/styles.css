@@ -1619,3 +1619,25 @@ main {
 .series-details-page .series-edit-modal::-webkit-scrollbar-track {
   background: transparent;
 }
+
+
+/* Event Series list status distinction */
+.series-card.draft-series {
+  border-style: dashed;
+}
+
+.series-card.draft-series > strong {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: rgba(61, 154, 127, 0.12);
+}
+
+.series-card.published-series > strong {
+  font-weight: 750;
+}
+
+.series-card.published-series .progress i {
+  opacity: .95;
+}
