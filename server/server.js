@@ -1183,6 +1183,15 @@ const seriesFromRow = (row) => {
   };
 };
 
+const seriesPositionFromTime = (startTime = "") => {
+  const hour = Number(String(startTime).split(":")[0] || 0);
+  if (hour < 10) return "morning";
+  if (hour < 12) return "lateMorning";
+  if (hour < 14) return "midday";
+  if (hour < 16) return "afternoon";
+  return "lateAfternoon";
+};
+
 const createSeriesActivity = (series, session, progressLabel) => {
   const activity = {
     type: "series",
@@ -1193,7 +1202,7 @@ const createSeriesActivity = (series, session, progressLabel) => {
     time: `${session.startTime}–${session.endTime}`,
     location: series.location || undefined,
     meta: `Event Series · ${series.location || "Location not set"}`,
-    position: "morning",
+    position: seriesPositionFromTime(session.startTime),
     capacity: progressLabel,
     status: "Scheduled",
   };
@@ -1342,7 +1351,14 @@ app.post("/api/event-series/:id/sessions", (req, res) => {
       return res.status(400).json({ error: "Date, start time and end time are required" });
     }
     const sessionId = req.body.id || `session-${Date.now()}`;
-    const activityId = createSeriesActivity(series, { ...req.body, id: sessionId }, null);
+    const existingDatedCount = db.prepare(
+      "SELECT COUNT(*) AS count FROM event_series_sessions WHERE series_id = ? AND session_date IS NOT NULL AND status <> 'cancelled'",
+    ).get(req.params.id).count;
+    const activityId = createSeriesActivity(
+      series,
+      { ...req.body, id: sessionId },
+      `${existingDatedCount + 1} of ${existingDatedCount + 1}`,
+    );
     db.prepare(`
       INSERT INTO event_series_sessions (id, series_id, session_date, start_time, end_time, status, activity_id)
       VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
@@ -1372,22 +1388,34 @@ app.put("/api/event-series/:seriesId/sessions/:sessionId", (req, res) => {
         const date = isSelected ? req.body.date : session.session_date;
         const startTime = req.body.startTime;
         const endTime = req.body.endTime;
-        db.prepare("UPDATE event_series_sessions SET session_date = ?, start_time = ?, end_time = ? WHERE id = ?")
-          .run(date, startTime, endTime, session.id);
-        if (session.activity_id) {
+        let activityId = session.activity_id;
+
+        if (!date && activityId) {
+          db.prepare("DELETE FROM schedule_activities WHERE id = ?").run(activityId);
+          activityId = null;
+        } else if (date && !activityId) {
+          activityId = createSeriesActivity(
+            series,
+            { id: session.id, date, startTime, endTime },
+            null,
+          );
+        } else if (date && activityId) {
           const activity = {
             type: "series", title: series.name, date, startTime, endTime,
             time: `${startTime}–${endTime}`, location: series.location || undefined,
             meta: `Event Series · ${series.location || "Location not set"}`,
-            position: "morning", status: "Scheduled",
+            position: seriesPositionFromTime(startTime), status: "Scheduled",
           };
           db.prepare(`
             UPDATE schedule_activities SET type=?, title=?, client_id=?, client_name=?, appointment_type=?,
             activity_date=?, start_time=?, end_time=?, time_label=?, location=?, meta=?, position=?,
             capacity=?, badge=?, time_type=?, repeat_setting=?, reason=?, prevent_bookings=?, status=?,
             updated_at=CURRENT_TIMESTAMP WHERE id=?
-          `).run(...activityValues(activity), session.activity_id);
+          `).run(...activityValues(activity), activityId);
         }
+
+        db.prepare("UPDATE event_series_sessions SET session_date = ?, start_time = ?, end_time = ?, activity_id = ? WHERE id = ?")
+          .run(date || null, startTime || null, endTime || null, activityId, session.id);
       });
     });
     update();
