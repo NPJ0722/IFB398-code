@@ -1303,8 +1303,103 @@ const syncAllPublishedSeriesSessionsToSchedule = () => {
   sync();
 };
 
+
+const importLegacySeriesActivities = () => {
+  const legacyRows = db.prepare(`
+    SELECT *
+    FROM schedule_activities
+    WHERE type = 'series'
+      AND id NOT IN (
+        SELECT activity_id
+        FROM event_series_sessions
+        WHERE activity_id IS NOT NULL
+      )
+    ORDER BY title, activity_date, start_time
+  `).all();
+
+  if (!legacyRows.length) return;
+
+  const grouped = new Map();
+  legacyRows.forEach((row) => {
+    const key = `${row.title}::${row.location || row.meta || ""}`;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  });
+
+  const migrate = db.transaction(() => {
+    grouped.forEach((rows) => {
+      const first = rows[0];
+
+      const existingSeries = db.prepare(`
+        SELECT *
+        FROM event_series
+        WHERE name = ?
+          AND status = 'published'
+        ORDER BY created_at
+        LIMIT 1
+      `).get(first.title);
+
+      let seriesId = existingSeries?.id;
+
+      if (!seriesId) {
+        seriesId = `legacy-series-${first.id}`;
+        const location =
+          first.location ||
+          String(first.meta || "")
+            .replace(/^Event Series\s*·\s*/i, "")
+            .trim() ||
+          null;
+
+        db.prepare(`
+          INSERT INTO event_series (
+            id, name, description, instructor, location,
+            capacity, price, image, status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'published')
+        `).run(
+          seriesId,
+          first.title,
+          "Imported from existing Schedule database.",
+          null,
+          location,
+          0,
+          0,
+          null,
+        );
+      }
+
+      rows.forEach((row, index) => {
+        const existingLink = db.prepare(
+          "SELECT id FROM event_series_sessions WHERE activity_id = ?",
+        ).get(row.id);
+
+        if (existingLink) return;
+
+        const sessionId = `legacy-session-${row.id}`;
+        db.prepare(`
+          INSERT OR IGNORE INTO event_series_sessions (
+            id, series_id, session_date, start_time,
+            end_time, status, activity_id
+          )
+          VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
+        `).run(
+          sessionId,
+          seriesId,
+          row.activity_date,
+          row.start_time,
+          row.end_time,
+          row.id,
+        );
+      });
+    });
+  });
+
+  migrate();
+};
+
 app.get("/api/event-series", (req, res) => {
   try {
+    importLegacySeriesActivities();
     const rows = db.prepare("SELECT * FROM event_series ORDER BY created_at DESC").all();
     res.json(rows.map(seriesFromRow));
   } catch (error) {
