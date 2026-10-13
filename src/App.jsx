@@ -1616,7 +1616,14 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const viewScheduleDate = (date) => {
+  const viewScheduleDate = async (date) => {
+    try {
+      const response = await fetch(ACTIVITIES_API);
+      const data = await readApiResponse(response);
+      setActivities(data);
+    } catch (error) {
+      console.error("Failed to refresh schedule before navigation:", error);
+    }
     setScheduleFocusDate(date || null);
     setPage("schedule");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2015,6 +2022,7 @@ export default function App() {
         go={go}
         activities={activities}
         clients={clients}
+        focusDate={scheduleFocusDate}
         notice={notice}
         clearNotice={() => setNotice("")}
         onEditBlocked={editBlocked}
@@ -2027,7 +2035,13 @@ export default function App() {
   } else if (page === "clients") {
     view = <Clients go={go} Page={Page} clients={clients} onSelectClient={setCurrentClient} />;
   } else if (page === "series") {
-    view = <Series go={go} eventSeries={eventSeries} onSelectSeries={setSelectedSeriesId} />;
+    view = <Series
+      go={go}
+      eventSeries={eventSeries}
+      onSelectSeries={setSelectedSeriesId}
+      onViewSchedule={viewScheduleDate}
+      onOpenSeries={openEventSeries}
+    />;
   } else if (page === "appointments") {
     view = (
       <Appointments
