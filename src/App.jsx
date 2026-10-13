@@ -606,7 +606,7 @@ function Schedule({
     </Page>
   );
 }
-function Series({go,eventSeries,onSelectSeries,onViewSchedule}){
+function Series({go,eventSeries,onSelectSeries,onViewSchedule,onOpenSeries}){
   const [openGroups,setOpenGroups]=useState({
     active:true,
     upcoming:true,
@@ -679,7 +679,7 @@ function Series({go,eventSeries,onSelectSeries,onViewSchedule}){
         {nextSession&&<span>Next: {nextSession.date}</span>}
       </div>
       <div className="series-card-actions">
-        <button onClick={()=>{onSelectSeries(series.id);go('series-details')}}>
+        <button onClick={()=>onOpenSeries(series)}>
           {category==='draft'?'Continue editing':'View details'}
         </button>
         {category!=='draft'&&dated.length>0&&
@@ -1523,6 +1523,39 @@ export default function App() {
     } catch (error) {
       console.error("Failed to load event series:", error);
       setNotice("Could not load event series from the database.");
+    }
+  };
+
+  const openEventSeries = async (series) => {
+    if (!series?.legacy) {
+      setSelectedSeriesId(series.id);
+      go("series-details");
+      return;
+    }
+
+    try {
+      const activityIds = series.sessions
+        .map((session) => session.activityId)
+        .filter((id) => id !== undefined && id !== null);
+
+      const imported = await readApiResponse(
+        await fetch(`${EVENT_SERIES_API}/import-legacy`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ activityIds }),
+        }),
+      );
+
+      setEventSeries((current) => [
+        imported,
+        ...current.filter((item) => item.id !== series.id),
+      ]);
+      setSelectedSeriesId(imported.id);
+      setNotice("Existing published course linked to the Event Series library.");
+      go("series-details");
+    } catch (error) {
+      console.error(error);
+      setNotice("Existing course could not be linked to the Event Series library.");
     }
   };
 
