@@ -1724,7 +1724,7 @@ export default function App() {
         current.map((series) => series.id === seriesId ? savedSeries : series),
       );
       await refreshSchedule();
-      setNotice("Session added to the event series and schedule.");
+      setNotice("Session added and synced to the Schedule Dashboard.");
       return { ok: true };
     } catch (error) {
       console.error(error);
@@ -1746,7 +1746,7 @@ export default function App() {
         current.map((series) => series.id === seriesId ? savedSeries : series),
       );
       await refreshSchedule();
-      setNotice(scope === "series" ? "Whole series times updated." : "Session updated.");
+      setNotice(scope === "series" ? "Whole series updated and synced to the Schedule Dashboard." : "Session updated and synced to the Schedule Dashboard.");
       return { ok: true };
     } catch (error) {
       console.error(error);
