@@ -584,6 +584,7 @@ app.get(
   (req, res) => {
 
     try {
+      syncAllPublishedSeriesSessionsToSchedule();
 
       const rows = db
         .prepare(`
@@ -1215,6 +1216,91 @@ const createSeriesActivity = (series, session, progressLabel) => {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(...activityValues(activity));
   return Number(result.lastInsertRowid);
+};
+
+
+const syncAllPublishedSeriesSessionsToSchedule = () => {
+  const rows = db.prepare(`
+    SELECT
+      s.id AS session_id,
+      s.series_id,
+      s.session_date,
+      s.start_time,
+      s.end_time,
+      s.status AS session_status,
+      s.activity_id,
+      e.name,
+      e.location,
+      e.status AS series_status
+    FROM event_series_sessions s
+    JOIN event_series e ON e.id = s.series_id
+    WHERE e.status = 'published'
+      AND s.session_date IS NOT NULL
+      AND s.session_date <> ''
+      AND s.status <> 'cancelled'
+    ORDER BY e.created_at, s.session_date, s.start_time
+  `).all();
+
+  const countBySeries = new Map();
+  rows.forEach((row) => {
+    countBySeries.set(row.series_id, (countBySeries.get(row.series_id) || 0) + 1);
+  });
+
+  const indexBySeries = new Map();
+
+  const sync = db.transaction(() => {
+    rows.forEach((row) => {
+      const nextIndex = (indexBySeries.get(row.series_id) || 0) + 1;
+      indexBySeries.set(row.series_id, nextIndex);
+      const progressLabel = `${nextIndex} of ${countBySeries.get(row.series_id)}`;
+
+      const linkedActivity = row.activity_id
+        ? db.prepare("SELECT id FROM schedule_activities WHERE id = ?").get(row.activity_id)
+        : null;
+
+      if (!linkedActivity) {
+        const activityId = createSeriesActivity(
+          { name: row.name, location: row.location },
+          {
+            id: row.session_id,
+            date: row.session_date,
+            startTime: row.start_time,
+            endTime: row.end_time,
+          },
+          progressLabel,
+        );
+        db.prepare(
+          "UPDATE event_series_sessions SET activity_id = ? WHERE id = ?",
+        ).run(activityId, row.session_id);
+        return;
+      }
+
+      const activity = {
+        type: "series",
+        title: row.name,
+        date: row.session_date,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        time: `${row.start_time}–${row.end_time}`,
+        location: row.location || undefined,
+        meta: `Event Series · ${row.location || "Location not set"}`,
+        position: seriesPositionFromTime(row.start_time),
+        capacity: progressLabel,
+        status: "Scheduled",
+      };
+
+      db.prepare(`
+        UPDATE schedule_activities SET
+          type=?, title=?, client_id=?, client_name=?, appointment_type=?,
+          activity_date=?, start_time=?, end_time=?, time_label=?, location=?,
+          meta=?, position=?, capacity=?, badge=?, time_type=?, repeat_setting=?,
+          reason=?, prevent_bookings=?, status=?, updated_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).run(...activityValues(activity), row.activity_id);
+    });
+  });
+
+  sync();
 };
 
 app.get("/api/event-series", (req, res) => {
