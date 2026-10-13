@@ -1400,11 +1400,154 @@ const importLegacySeriesActivities = () => {
 app.get("/api/event-series", (req, res) => {
   try {
     importLegacySeriesActivities();
-    const rows = db.prepare("SELECT * FROM event_series ORDER BY created_at DESC").all();
-    res.json(rows.map(seriesFromRow));
+
+    const rows = db.prepare(
+      "SELECT * FROM event_series ORDER BY created_at DESC",
+    ).all();
+
+    const nativeSeries = rows.map(seriesFromRow);
+
+    // Safety net for older local databases:
+    // if a legacy published series exists only in schedule_activities and has not
+    // been linked to event_series_sessions yet, expose it in the Event Series
+    // library instead of hiding it.
+    const legacyRows = db.prepare(`
+      SELECT *
+      FROM schedule_activities
+      WHERE type = 'series'
+      ORDER BY activity_date, start_time
+    `).all();
+
+    const linkedActivityIds = new Set(
+      db.prepare(`
+        SELECT activity_id
+        FROM event_series_sessions
+        WHERE activity_id IS NOT NULL
+      `).all().map((row) => Number(row.activity_id)),
+    );
+
+    const groupedLegacy = new Map();
+    legacyRows.forEach((row) => {
+      if (linkedActivityIds.has(Number(row.id))) return;
+      const key = row.title || `Legacy series ${row.id}`;
+      if (!groupedLegacy.has(key)) groupedLegacy.set(key, []);
+      groupedLegacy.get(key).push(row);
+    });
+
+    const legacySeries = Array.from(groupedLegacy.entries()).map(([name, sessions], groupIndex) => {
+      const first = sessions[0];
+      const location =
+        first.location ||
+        String(first.meta || "")
+          .replace(/^Event Series\s*·\s*/i, "")
+          .trim() ||
+        "";
+
+      return {
+        id: `legacy-library-${groupIndex}-${String(name).replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+        name,
+        description: "Published course imported from the existing schedule database.",
+        instructor: "",
+        location,
+        capacity: 0,
+        price: 0,
+        image: null,
+        status: "published",
+        legacy: true,
+        sessions: sessions.map((row) => ({
+          id: `legacy-activity-${row.id}`,
+          date: row.activity_date || "",
+          startTime: row.start_time || "",
+          endTime: row.end_time || "",
+          status: "scheduled",
+          activityId: row.id,
+        })),
+      };
+    });
+
+    res.json([...nativeSeries, ...legacySeries]);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to load event series" });
+  }
+});
+
+app.post("/api/event-series/import-legacy", (req, res) => {
+  try {
+    const activityIds = Array.isArray(req.body.activityIds)
+      ? req.body.activityIds.map(Number).filter(Number.isFinite)
+      : [];
+
+    if (!activityIds.length) {
+      return res.status(400).json({ error: "No legacy schedule activities were supplied" });
+    }
+
+    const placeholders = activityIds.map(() => "?").join(",");
+    const activities = db.prepare(`
+      SELECT *
+      FROM schedule_activities
+      WHERE id IN (${placeholders})
+        AND type = 'series'
+      ORDER BY activity_date, start_time
+    `).all(...activityIds);
+
+    if (!activities.length) {
+      return res.status(404).json({ error: "Legacy Event Series activities were not found" });
+    }
+
+    const first = activities[0];
+    const id = `series-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const location =
+      first.location ||
+      String(first.meta || "")
+        .replace(/^Event Series\s*·\s*/i, "")
+        .trim() ||
+      null;
+
+    const migrate = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO event_series (
+          id, name, description, instructor, location,
+          capacity, price, image, status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'published')
+      `).run(
+        id,
+        first.title || "Imported Event Series",
+        "Imported from the existing Schedule database.",
+        null,
+        location,
+        0,
+        0,
+        null,
+      );
+
+      activities.forEach((activity, index) => {
+        const sessionId = `legacy-session-${activity.id}-${Date.now()}-${index}`;
+        db.prepare(`
+          INSERT INTO event_series_sessions (
+            id, series_id, session_date, start_time,
+            end_time, status, activity_id
+          )
+          VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
+        `).run(
+          sessionId,
+          id,
+          activity.activity_date || null,
+          activity.start_time || null,
+          activity.end_time || null,
+          activity.id,
+        );
+      });
+    });
+
+    migrate();
+    res.status(201).json(
+      seriesFromRow(db.prepare("SELECT * FROM event_series WHERE id = ?").get(id)),
+    );
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to import legacy Event Series" });
   }
 });
 
