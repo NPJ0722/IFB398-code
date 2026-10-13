@@ -1641,3 +1641,14 @@ main {
 .series-card.published-series .progress i {
   opacity: .95;
 }
+
+
+/* Event Series schedule link */
+.series-card-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.series-card-actions button {
+  width: 100%;
+}
