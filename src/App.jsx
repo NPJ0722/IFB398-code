@@ -607,6 +607,7 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
   const [editing,setEditing]=useState(null);
   const [adding,setAdding]=useState(false);
   const [editingSeries,setEditingSeries]=useState(false);
+  const [confirmingDelete,setConfirmingDelete]=useState(false);
   const [draft,setDraft]=useState({date:'',startTime:'09:00',endTime:'10:00'});
   const [seriesDraft,setSeriesDraft]=useState({
     name:series.name||'',
@@ -651,9 +652,11 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
     if(result?.ok!==false)setEditingSeries(false);
   };
   const deleteSeries=async()=>{
-    if(!window.confirm('Remove this entire event series and all of its sessions? This cannot be undone.'))return;
     const result=await onDeleteSeries(series.id);
-    if(result?.ok!==false)go('series');
+    if(result?.ok!==false){
+      setConfirmingDelete(false);
+      go('series');
+    }
   };
 
   return <main className="form-page series-details-page">
@@ -667,7 +670,7 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
         </div>
         <div className="series-overview-actions">
           <button className="secondary-button" onClick={openSeriesEdit}>Edit Series</button>
-          <button className="danger-button" onClick={deleteSeries}>Remove Series</button>
+          <button className="danger-button" onClick={()=>setConfirmingDelete(true)}>Remove Series</button>
         </div>
       </div>
       <p className="series-status-description">{series.status==='draft'?'This series is saved as a draft. Add dates when the schedule is ready.':'This event series is active and visible in the schedule.'}</p>
@@ -678,6 +681,23 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
         <div className="series-info-item"><span>SESSIONS</span><strong>{datedSessions.length}</strong></div>
       </div>
     </section>
+
+    {confirmingDelete&&<div className="modal-backdrop" onMouseDown={()=>setConfirmingDelete(false)}>
+      <section className="activity-modal series-confirm-modal" onMouseDown={e=>e.stopPropagation()}>
+        <div className="modal-heading">
+          <div>
+            <h2>Remove Event Series?</h2>
+            <p>This will permanently remove this event series and all of its sessions.</p>
+          </div>
+          <button className="icon-button" onClick={()=>setConfirmingDelete(false)} aria-label="Close"><X size={18}/></button>
+        </div>
+        <p className="series-confirm-warning">This action cannot be undone.</p>
+        <div className="form-actions">
+          <button className="secondary-button" onClick={()=>setConfirmingDelete(false)}>Cancel</button>
+          <button className="danger-button" onClick={deleteSeries}>Remove Series</button>
+        </div>
+      </section>
+    </div>}
 
     {editingSeries&&<div className="modal-backdrop" onMouseDown={()=>setEditingSeries(false)}>
       <section className="activity-modal series-edit-modal" onMouseDown={e=>e.stopPropagation()}>
