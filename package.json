@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "concurrently \"vite\" \"node server/server.js\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed:demo": "node server/seed-demo.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
