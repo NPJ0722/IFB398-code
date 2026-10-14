@@ -671,7 +671,7 @@ function Series({go,eventSeries,onSelectSeries,onViewSchedule,onOpenSeries}){
         <span className={`series-list-status ${category}`}>{statusLabel}</span>
       </div>
       <h2>{series.name}</h2>
-      <strong>{dated.length} session{dated.length===1?'':'s'}</strong>
+      <strong>{dated.length} scheduled session{dated.length===1?'':'s'}</strong>
       <div className="progress"><i style={{width:category==='draft'?'0%':'100%'}}/></div>
       <div className="series-card-meta">
         <span>{series.location||'Location not set'}</span>
@@ -688,7 +688,7 @@ function Series({go,eventSeries,onSelectSeries,onViewSchedule,onOpenSeries}){
     </article>;
   };
 
-  return <Page title="Event Series" subtitle="Create, organise and manage multi-session programs." action="New event series" onAction={()=>go('create-series')}>
+  return <Page title="Event Series" subtitle="Manage existing scheduled courses and new multi-session programs in one place." action="New event series" onAction={()=>go('create-series')}>
     <div className="series-management-toolbar">
       <span>{eventSeries.length} total series</span>
       <span>{groups.active.length} active</span>
