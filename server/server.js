@@ -1308,7 +1308,7 @@ const importLegacySeriesActivities = () => {
   const legacyRows = db.prepare(`
     SELECT *
     FROM schedule_activities
-    WHERE type = 'series'
+    WHERE (type = 'series' OR lower(COALESCE(meta, '')) LIKE '%event series%' OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*')
       AND id NOT IN (
         SELECT activity_id
         FROM event_series_sessions
@@ -1321,7 +1321,11 @@ const importLegacySeriesActivities = () => {
 
   const grouped = new Map();
   legacyRows.forEach((row) => {
-    const key = `${row.title}::${row.location || row.meta || ""}`;
+    const key = [
+      row.title || "Untitled Event Series",
+      row.location || String(row.meta || "").replace(/^Event Series\s*·\s*/i, "").trim(),
+      row.capacity || "",
+    ].join("::");
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key).push(row);
   });
@@ -1335,9 +1339,13 @@ const importLegacySeriesActivities = () => {
         FROM event_series
         WHERE name = ?
           AND status = 'published'
+          AND COALESCE(location, '') = ?
         ORDER BY created_at
         LIMIT 1
-      `).get(first.title);
+      `).get(
+        first.title,
+        first.location || String(first.meta || "").replace(/^Event Series\s*·\s*/i, "").trim() || "",
+      );
 
       let seriesId = existingSeries?.id;
 
@@ -1414,7 +1422,7 @@ app.get("/api/event-series", (req, res) => {
     const legacyRows = db.prepare(`
       SELECT *
       FROM schedule_activities
-      WHERE type = 'series'
+      WHERE (type = 'series' OR lower(COALESCE(meta, '')) LIKE '%event series%' OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*')
       ORDER BY activity_date, start_time
     `).all();
 
@@ -1429,7 +1437,11 @@ app.get("/api/event-series", (req, res) => {
     const groupedLegacy = new Map();
     legacyRows.forEach((row) => {
       if (linkedActivityIds.has(Number(row.id))) return;
-      const key = row.title || `Legacy series ${row.id}`;
+      const key = [
+        row.title || `Legacy series ${row.id}`,
+        row.location || String(row.meta || "").replace(/^Event Series\s*·\s*/i, "").trim(),
+        row.capacity || "",
+      ].join("::");
       if (!groupedLegacy.has(key)) groupedLegacy.set(key, []);
       groupedLegacy.get(key).push(row);
     });
@@ -1487,7 +1499,7 @@ app.post("/api/event-series/import-legacy", (req, res) => {
       SELECT *
       FROM schedule_activities
       WHERE id IN (${placeholders})
-        AND type = 'series'
+        AND (type = 'series' OR lower(COALESCE(meta, '')) LIKE '%event series%' OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*')
       ORDER BY activity_date, start_time
     `).all(...activityIds);
 
