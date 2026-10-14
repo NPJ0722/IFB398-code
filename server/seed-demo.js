@@ -6,6 +6,59 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const db = new Database(path.join(__dirname, "strong_steady.db"));
 
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS schedule_activities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    client_id INTEGER,
+    client_name TEXT,
+    appointment_type TEXT,
+    activity_date TEXT NOT NULL,
+    start_time TEXT,
+    end_time TEXT,
+    time_label TEXT NOT NULL,
+    location TEXT,
+    meta TEXT,
+    position TEXT,
+    capacity TEXT,
+    badge TEXT,
+    time_type TEXT,
+    repeat_setting TEXT,
+    reason TEXT,
+    prevent_bookings INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'Scheduled',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS event_series (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    instructor TEXT,
+    location TEXT,
+    capacity INTEGER,
+    price REAL,
+    image TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS event_series_sessions (
+    id TEXT PRIMARY KEY,
+    series_id TEXT NOT NULL,
+    session_date TEXT,
+    start_time TEXT,
+    end_time TEXT,
+    status TEXT NOT NULL DEFAULT 'scheduled',
+    activity_id INTEGER,
+    FOREIGN KEY (series_id) REFERENCES event_series(id) ON DELETE CASCADE
+  );
+`);
+
 const today = new Date();
 today.setHours(0, 0, 0, 0);
 
