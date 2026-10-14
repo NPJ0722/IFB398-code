@@ -88,6 +88,118 @@ db.exec(`
   );
 `);
 
+
+// ======================================================
+// Historical Event Series library migration
+// These three cards existed in the original Event Series UI but were
+// previously hard-coded sample cards rather than persisted database rows.
+// Persist them once so they remain editable and do not disappear.
+// ======================================================
+
+const seedHistoricalEventSeriesLibrary = () => {
+  const historicalSeries = [
+    {
+      id: "historical-strong-start",
+      name: "Strong Start",
+      description: "Original published Event Series from the previous dashboard.",
+      instructor: "Claire",
+      location: "Studio A",
+      capacity: 9,
+      price: 0,
+      status: "published",
+    },
+    {
+      id: "historical-balance-mobility",
+      name: "Balance & Mobility",
+      description: "Original published Event Series from the previous dashboard.",
+      instructor: "Claire",
+      location: "Studio B",
+      capacity: 12,
+      price: 0,
+      status: "published",
+    },
+    {
+      id: "historical-healthy-back",
+      name: "Healthy Back Program",
+      description: "Original draft Event Series from the previous dashboard.",
+      instructor: "Claire",
+      location: "Studio A",
+      capacity: 12,
+      price: 0,
+      status: "draft",
+    },
+  ];
+
+  const insertSeries = db.prepare(`
+    INSERT OR IGNORE INTO event_series (
+      id, name, description, instructor, location,
+      capacity, price, image, status
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const migrate = db.transaction(() => {
+    historicalSeries.forEach((series) => {
+      const existingByName = db.prepare(
+        "SELECT id FROM event_series WHERE name = ? LIMIT 1",
+      ).get(series.name);
+
+      if (!existingByName) {
+        insertSeries.run(
+          series.id,
+          series.name,
+          series.description,
+          series.instructor,
+          series.location,
+          series.capacity,
+          series.price,
+          null,
+          series.status,
+        );
+      }
+    });
+
+    // Link the original Strong Start schedule activity when it exists.
+    const strongStartSeries = db.prepare(
+      "SELECT id FROM event_series WHERE name = 'Strong Start' LIMIT 1",
+    ).get();
+    const strongStartActivity = db.prepare(`
+      SELECT *
+      FROM schedule_activities
+      WHERE title = 'Strong Start'
+      ORDER BY activity_date, start_time
+      LIMIT 1
+    `).get();
+
+    if (strongStartSeries && strongStartActivity) {
+      const existingSession = db.prepare(
+        "SELECT id FROM event_series_sessions WHERE activity_id = ? LIMIT 1",
+      ).get(strongStartActivity.id);
+
+      if (!existingSession) {
+        db.prepare(`
+          INSERT OR IGNORE INTO event_series_sessions (
+            id, series_id, session_date, start_time,
+            end_time, status, activity_id
+          )
+          VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
+        `).run(
+          `historical-session-${strongStartActivity.id}`,
+          strongStartSeries.id,
+          strongStartActivity.activity_date || null,
+          strongStartActivity.start_time || null,
+          strongStartActivity.end_time || null,
+          strongStartActivity.id,
+        );
+      }
+    }
+  });
+
+  migrate();
+};
+
+seedHistoricalEventSeriesLibrary();
+
 // ======================================================
 // Add new columns to an existing old database
 // ======================================================
