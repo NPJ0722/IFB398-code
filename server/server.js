@@ -1310,7 +1310,7 @@ const importLegacySeriesActivities = () => {
   const legacyRows = db.prepare(`
     SELECT *
     FROM schedule_activities
-    WHERE (type IN ('series','class','recurring') OR lower(COALESCE(meta, '')) LIKE '%event series%' OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*')
+    WHERE (type = 'series' OR lower(COALESCE(meta, '')) LIKE '%event series%')
       AND id NOT IN (
         SELECT activity_id
         FROM event_series_sessions
@@ -1408,41 +1408,6 @@ const importLegacySeriesActivities = () => {
   migrate();
 };
 
-app.get("/api/event-series/debug/source", (req, res) => {
-  try {
-    const eventSeriesCount = db.prepare(
-      "SELECT COUNT(*) AS count FROM event_series",
-    ).get().count;
-
-    const eventSeriesRows = db.prepare(`
-      SELECT id, name, status, location, created_at, updated_at
-      FROM event_series
-      ORDER BY created_at DESC
-    `).all();
-
-    const scheduleSeriesRows = db.prepare(`
-      SELECT id, type, title, activity_date, start_time, end_time,
-             location, meta, capacity, status
-      FROM schedule_activities
-      WHERE type = 'series'
-         OR lower(COALESCE(meta, '')) LIKE '%event series%'
-         OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*'
-      ORDER BY activity_date, start_time
-    `).all();
-
-    res.json({
-      databasePath: dbPath,
-      eventSeriesCount,
-      eventSeriesRows,
-      scheduleSeriesCount: scheduleSeriesRows.length,
-      scheduleSeriesRows,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to inspect Event Series database source" });
-  }
-});
-
 app.get("/api/event-series", (req, res) => {
   try {
     importLegacySeriesActivities();
@@ -1460,7 +1425,7 @@ app.get("/api/event-series", (req, res) => {
     const legacyRows = db.prepare(`
       SELECT *
       FROM schedule_activities
-      WHERE (type IN ('series','class','recurring') OR lower(COALESCE(meta, '')) LIKE '%event series%' OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*')
+      WHERE (type = 'series' OR lower(COALESCE(meta, '')) LIKE '%event series%')
       ORDER BY activity_date, start_time
     `).all();
 
@@ -1538,7 +1503,7 @@ app.post("/api/event-series/import-legacy", (req, res) => {
       SELECT *
       FROM schedule_activities
       WHERE id IN (${placeholders})
-        AND (type IN ('series','class','recurring') OR lower(COALESCE(meta, '')) LIKE '%event series%' OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*')
+        AND (type = 'series' OR lower(COALESCE(meta, '')) LIKE '%event series%')
       ORDER BY activity_date, start_time
     `).all(...activityIds);
 
