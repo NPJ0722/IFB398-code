@@ -88,6 +88,8 @@ db.exec(`
   );
 `);
 
+
+
 // ======================================================
 // Add new columns to an existing old database
 // ======================================================
@@ -584,6 +586,7 @@ app.get(
   (req, res) => {
 
     try {
+      syncAllPublishedSeriesSessionsToSchedule();
 
       const rows = db
         .prepare(`
@@ -1183,6 +1186,15 @@ const seriesFromRow = (row) => {
   };
 };
 
+const seriesPositionFromTime = (startTime = "") => {
+  const hour = Number(String(startTime).split(":")[0] || 0);
+  if (hour < 10) return "morning";
+  if (hour < 12) return "lateMorning";
+  if (hour < 14) return "midday";
+  if (hour < 16) return "afternoon";
+  return "lateAfternoon";
+};
+
 const createSeriesActivity = (series, session, progressLabel) => {
   const activity = {
     type: "series",
@@ -1193,7 +1205,7 @@ const createSeriesActivity = (series, session, progressLabel) => {
     time: `${session.startTime}–${session.endTime}`,
     location: series.location || undefined,
     meta: `Event Series · ${series.location || "Location not set"}`,
-    position: "morning",
+    position: seriesPositionFromTime(session.startTime),
     capacity: progressLabel,
     status: "Scheduled",
   };
@@ -1208,20 +1220,392 @@ const createSeriesActivity = (series, session, progressLabel) => {
   return Number(result.lastInsertRowid);
 };
 
+
+const syncAllPublishedSeriesSessionsToSchedule = () => {
+  const rows = db.prepare(`
+    SELECT
+      s.id AS session_id,
+      s.series_id,
+      s.session_date,
+      s.start_time,
+      s.end_time,
+      s.status AS session_status,
+      s.activity_id,
+      e.name,
+      e.location,
+      e.status AS series_status
+    FROM event_series_sessions s
+    JOIN event_series e ON e.id = s.series_id
+    WHERE e.status = 'published'
+      AND s.session_date IS NOT NULL
+      AND s.session_date <> ''
+      AND s.status <> 'cancelled'
+    ORDER BY e.created_at, s.session_date, s.start_time
+  `).all();
+
+  const countBySeries = new Map();
+  rows.forEach((row) => {
+    countBySeries.set(row.series_id, (countBySeries.get(row.series_id) || 0) + 1);
+  });
+
+  const indexBySeries = new Map();
+
+  const sync = db.transaction(() => {
+    rows.forEach((row) => {
+      const nextIndex = (indexBySeries.get(row.series_id) || 0) + 1;
+      indexBySeries.set(row.series_id, nextIndex);
+      const progressLabel = `${nextIndex} of ${countBySeries.get(row.series_id)}`;
+
+      const linkedActivity = row.activity_id
+        ? db.prepare("SELECT id FROM schedule_activities WHERE id = ?").get(row.activity_id)
+        : null;
+
+      if (!linkedActivity) {
+        const activityId = createSeriesActivity(
+          { name: row.name, location: row.location },
+          {
+            id: row.session_id,
+            date: row.session_date,
+            startTime: row.start_time,
+            endTime: row.end_time,
+          },
+          progressLabel,
+        );
+        db.prepare(
+          "UPDATE event_series_sessions SET activity_id = ? WHERE id = ?",
+        ).run(activityId, row.session_id);
+        return;
+      }
+
+      const activity = {
+        type: "series",
+        title: row.name,
+        date: row.session_date,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        time: `${row.start_time}–${row.end_time}`,
+        location: row.location || undefined,
+        meta: `Event Series · ${row.location || "Location not set"}`,
+        position: seriesPositionFromTime(row.start_time),
+        capacity: progressLabel,
+        status: "Scheduled",
+      };
+
+      db.prepare(`
+        UPDATE schedule_activities SET
+          type=?, title=?, client_id=?, client_name=?, appointment_type=?,
+          activity_date=?, start_time=?, end_time=?, time_label=?, location=?,
+          meta=?, position=?, capacity=?, badge=?, time_type=?, repeat_setting=?,
+          reason=?, prevent_bookings=?, status=?, updated_at=CURRENT_TIMESTAMP
+        WHERE id=?
+      `).run(...activityValues(activity), row.activity_id);
+    });
+  });
+
+  sync();
+};
+
+
+const importLegacySeriesActivities = () => {
+  const legacyRows = db.prepare(`
+    SELECT *
+    FROM schedule_activities
+    WHERE (type IN ('series','class','recurring') OR lower(COALESCE(meta, '')) LIKE '%event series%' OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*')
+      AND id NOT IN (
+        SELECT activity_id
+        FROM event_series_sessions
+        WHERE activity_id IS NOT NULL
+      )
+    ORDER BY title, activity_date, start_time
+  `).all();
+
+  if (!legacyRows.length) return;
+
+  const grouped = new Map();
+  legacyRows.forEach((row) => {
+    const key = [
+      row.title || "Untitled course",
+      row.location || String(row.meta || "")
+        .replace(/^(Event Series|Recurring)\s*·\s*/i, "")
+        .trim(),
+    ].join("::");
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  });
+
+  const migrate = db.transaction(() => {
+    grouped.forEach((rows) => {
+      const first = rows[0];
+
+      const existingSeries = db.prepare(`
+        SELECT *
+        FROM event_series
+        WHERE name = ?
+          AND status = 'published'
+          AND COALESCE(location, '') = ?
+        ORDER BY created_at
+        LIMIT 1
+      `).get(
+        first.title,
+        first.location || String(first.meta || "").replace(/^Event Series\s*·\s*/i, "").trim() || "",
+      );
+
+      let seriesId = existingSeries?.id;
+
+      if (!seriesId) {
+        seriesId = `legacy-series-${first.id}`;
+        const location =
+          first.location ||
+          String(first.meta || "")
+            .replace(/^Event Series\s*·\s*/i, "")
+            .trim() ||
+          null;
+
+        db.prepare(`
+          INSERT INTO event_series (
+            id, name, description, instructor, location,
+            capacity, price, image, status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'published')
+        `).run(
+          seriesId,
+          first.title,
+          "Linked from the existing Schedule database.",
+          null,
+          location,
+          0,
+          0,
+          null,
+        );
+      }
+
+      rows.forEach((row, index) => {
+        const existingLink = db.prepare(
+          "SELECT id FROM event_series_sessions WHERE activity_id = ?",
+        ).get(row.id);
+
+        if (existingLink) return;
+
+        const sessionId = `legacy-session-${row.id}`;
+        db.prepare(`
+          INSERT OR IGNORE INTO event_series_sessions (
+            id, series_id, session_date, start_time,
+            end_time, status, activity_id
+          )
+          VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
+        `).run(
+          sessionId,
+          seriesId,
+          row.activity_date,
+          row.start_time,
+          row.end_time,
+          row.id,
+        );
+      });
+    });
+  });
+
+  migrate();
+};
+
+app.get("/api/event-series/debug/source", (req, res) => {
+  try {
+    const eventSeriesCount = db.prepare(
+      "SELECT COUNT(*) AS count FROM event_series",
+    ).get().count;
+
+    const eventSeriesRows = db.prepare(`
+      SELECT id, name, status, location, created_at, updated_at
+      FROM event_series
+      ORDER BY created_at DESC
+    `).all();
+
+    const scheduleSeriesRows = db.prepare(`
+      SELECT id, type, title, activity_date, start_time, end_time,
+             location, meta, capacity, status
+      FROM schedule_activities
+      WHERE type = 'series'
+         OR lower(COALESCE(meta, '')) LIKE '%event series%'
+         OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*'
+      ORDER BY activity_date, start_time
+    `).all();
+
+    res.json({
+      databasePath: dbPath,
+      eventSeriesCount,
+      eventSeriesRows,
+      scheduleSeriesCount: scheduleSeriesRows.length,
+      scheduleSeriesRows,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to inspect Event Series database source" });
+  }
+});
+
 app.get("/api/event-series", (req, res) => {
   try {
-    const rows = db.prepare("SELECT * FROM event_series ORDER BY created_at DESC").all();
-    res.json(rows.map(seriesFromRow));
+    importLegacySeriesActivities();
+
+    const rows = db.prepare(
+      "SELECT * FROM event_series ORDER BY created_at DESC",
+    ).all();
+
+    const nativeSeries = rows.map(seriesFromRow);
+
+    // Safety net for older local databases:
+    // if a legacy published series exists only in schedule_activities and has not
+    // been linked to event_series_sessions yet, expose it in the Event Series
+    // library instead of hiding it.
+    const legacyRows = db.prepare(`
+      SELECT *
+      FROM schedule_activities
+      WHERE (type IN ('series','class','recurring') OR lower(COALESCE(meta, '')) LIKE '%event series%' OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*')
+      ORDER BY activity_date, start_time
+    `).all();
+
+    const linkedActivityIds = new Set(
+      db.prepare(`
+        SELECT activity_id
+        FROM event_series_sessions
+        WHERE activity_id IS NOT NULL
+      `).all().map((row) => Number(row.activity_id)),
+    );
+
+    const groupedLegacy = new Map();
+    legacyRows.forEach((row) => {
+      if (linkedActivityIds.has(Number(row.id))) return;
+      const key = [
+        row.title || `Existing course ${row.id}`,
+        row.location || String(row.meta || "")
+          .replace(/^(Event Series|Recurring)\s*·\s*/i, "")
+          .trim(),
+      ].join("::");
+      if (!groupedLegacy.has(key)) groupedLegacy.set(key, []);
+      groupedLegacy.get(key).push(row);
+    });
+
+    const legacySeries = Array.from(groupedLegacy.entries()).map(([name, sessions], groupIndex) => {
+      const first = sessions[0];
+      const location =
+        first.location ||
+        String(first.meta || "")
+          .replace(/^Event Series\s*·\s*/i, "")
+          .trim() ||
+        "";
+
+      return {
+        id: `legacy-library-${groupIndex}-${String(name).replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+        name,
+        description: "Existing course linked from the Schedule database.",
+        instructor: "",
+        location,
+        capacity: 0,
+        price: 0,
+        image: null,
+        status: "published",
+        legacy: true,
+        sessions: sessions.map((row) => ({
+          id: `legacy-activity-${row.id}`,
+          date: row.activity_date || "",
+          startTime: row.start_time || "",
+          endTime: row.end_time || "",
+          status: "scheduled",
+          activityId: row.id,
+        })),
+      };
+    });
+
+    res.json([...nativeSeries, ...legacySeries]);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to load event series" });
   }
 });
 
+app.post("/api/event-series/import-legacy", (req, res) => {
+  try {
+    const activityIds = Array.isArray(req.body.activityIds)
+      ? req.body.activityIds.map(Number).filter(Number.isFinite)
+      : [];
+
+    if (!activityIds.length) {
+      return res.status(400).json({ error: "No legacy schedule activities were supplied" });
+    }
+
+    const placeholders = activityIds.map(() => "?").join(",");
+    const activities = db.prepare(`
+      SELECT *
+      FROM schedule_activities
+      WHERE id IN (${placeholders})
+        AND (type IN ('series','class','recurring') OR lower(COALESCE(meta, '')) LIKE '%event series%' OR COALESCE(capacity, '') GLOB '[0-9]* of [0-9]*')
+      ORDER BY activity_date, start_time
+    `).all(...activityIds);
+
+    if (!activities.length) {
+      return res.status(404).json({ error: "Legacy Event Series activities were not found" });
+    }
+
+    const first = activities[0];
+    const id = `series-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const location =
+      first.location ||
+      String(first.meta || "")
+        .replace(/^Event Series\s*·\s*/i, "")
+        .trim() ||
+      null;
+
+    const migrate = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO event_series (
+          id, name, description, instructor, location,
+          capacity, price, image, status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'published')
+      `).run(
+        id,
+        first.title || "Imported Event Series",
+        "Imported from the existing Schedule database.",
+        null,
+        location,
+        0,
+        0,
+        null,
+      );
+
+      activities.forEach((activity, index) => {
+        const sessionId = `legacy-session-${activity.id}-${Date.now()}-${index}`;
+        db.prepare(`
+          INSERT INTO event_series_sessions (
+            id, series_id, session_date, start_time,
+            end_time, status, activity_id
+          )
+          VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
+        `).run(
+          sessionId,
+          id,
+          activity.activity_date || null,
+          activity.start_time || null,
+          activity.end_time || null,
+          activity.id,
+        );
+      });
+    });
+
+    migrate();
+    res.status(201).json(
+      seriesFromRow(db.prepare("SELECT * FROM event_series WHERE id = ?").get(id)),
+    );
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to import legacy Event Series" });
+  }
+});
+
 app.post("/api/event-series", (req, res) => {
   try {
     if (!req.body.name) return res.status(400).json({ error: "Series name is required" });
-    const id = req.body.id || `series-${Date.now()}`;
+    const id = req.body.id || `series-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const sessions = Array.isArray(req.body.sessions) ? req.body.sessions : [];
     if (req.body.status === "published" && !sessions.some((session) => session.date)) {
       return res.status(400).json({ error: "A published series needs at least one dated session" });
@@ -1342,7 +1726,14 @@ app.post("/api/event-series/:id/sessions", (req, res) => {
       return res.status(400).json({ error: "Date, start time and end time are required" });
     }
     const sessionId = req.body.id || `session-${Date.now()}`;
-    const activityId = createSeriesActivity(series, { ...req.body, id: sessionId }, null);
+    const existingDatedCount = db.prepare(
+      "SELECT COUNT(*) AS count FROM event_series_sessions WHERE series_id = ? AND session_date IS NOT NULL AND status <> 'cancelled'",
+    ).get(req.params.id).count;
+    const activityId = createSeriesActivity(
+      series,
+      { ...req.body, id: sessionId },
+      `${existingDatedCount + 1} of ${existingDatedCount + 1}`,
+    );
     db.prepare(`
       INSERT INTO event_series_sessions (id, series_id, session_date, start_time, end_time, status, activity_id)
       VALUES (?, ?, ?, ?, ?, 'scheduled', ?)
@@ -1372,22 +1763,34 @@ app.put("/api/event-series/:seriesId/sessions/:sessionId", (req, res) => {
         const date = isSelected ? req.body.date : session.session_date;
         const startTime = req.body.startTime;
         const endTime = req.body.endTime;
-        db.prepare("UPDATE event_series_sessions SET session_date = ?, start_time = ?, end_time = ? WHERE id = ?")
-          .run(date, startTime, endTime, session.id);
-        if (session.activity_id) {
+        let activityId = session.activity_id;
+
+        if (!date && activityId) {
+          db.prepare("DELETE FROM schedule_activities WHERE id = ?").run(activityId);
+          activityId = null;
+        } else if (date && !activityId) {
+          activityId = createSeriesActivity(
+            series,
+            { id: session.id, date, startTime, endTime },
+            null,
+          );
+        } else if (date && activityId) {
           const activity = {
             type: "series", title: series.name, date, startTime, endTime,
             time: `${startTime}–${endTime}`, location: series.location || undefined,
             meta: `Event Series · ${series.location || "Location not set"}`,
-            position: "morning", status: "Scheduled",
+            position: seriesPositionFromTime(startTime), status: "Scheduled",
           };
           db.prepare(`
             UPDATE schedule_activities SET type=?, title=?, client_id=?, client_name=?, appointment_type=?,
             activity_date=?, start_time=?, end_time=?, time_label=?, location=?, meta=?, position=?,
             capacity=?, badge=?, time_type=?, repeat_setting=?, reason=?, prevent_bookings=?, status=?,
             updated_at=CURRENT_TIMESTAMP WHERE id=?
-          `).run(...activityValues(activity), session.activity_id);
+          `).run(...activityValues(activity), activityId);
         }
+
+        db.prepare("UPDATE event_series_sessions SET session_date = ?, start_time = ?, end_time = ?, activity_id = ? WHERE id = ?")
+          .run(date || null, startTime || null, endTime || null, activityId, session.id);
       });
     });
     update();
