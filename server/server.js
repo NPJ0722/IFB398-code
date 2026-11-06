@@ -1,11 +1,12 @@
 import express from "express";
 import cors from "cors";
 import Database from "better-sqlite3";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const app = express();
-const PORT = 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +14,12 @@ const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
 
-const dbPath = path.join(__dirname, "strong_steady.db");
+const dataDirectory = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : __dirname;
+fs.mkdirSync(dataDirectory, { recursive: true });
+
+const dbPath = path.join(dataDirectory, "strong_steady.db");
 const db = new Database(dbPath);
 
 console.log("Connected to SQLite database");
@@ -568,11 +574,12 @@ const conflictResponse = (
 // Test route
 // ======================================================
 
-app.get("/", (req, res) => {
+app.get("/api/health", (req, res) => {
 
-  res.send(
-    "Strong & Steady API is running",
-  );
+  res.status(200).json({
+    status: "ok",
+    service: "Strong & Steady API",
+  });
 
 });
 
@@ -2606,6 +2613,29 @@ app.post(
 
   },
 );
+
+
+// ======================================================
+// Serve the production React application
+// ======================================================
+
+const distPath = path.join(__dirname, "..", "dist");
+
+if (fs.existsSync(distPath)) {
+
+  app.use(express.static(distPath));
+
+  app.get("/{*splat}", (req, res, next) => {
+
+    if (req.path.startsWith("/api/")) {
+      return next();
+    }
+
+    return res.sendFile(path.join(distPath, "index.html"));
+
+  });
+
+}
 
 
 // ======================================================
