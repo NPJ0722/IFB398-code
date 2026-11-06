@@ -1104,19 +1104,18 @@ app.delete(
 
     try {
 
-      const result = db
+      const activity = db
         .prepare(`
-          DELETE FROM schedule_activities
+          SELECT id
+          FROM schedule_activities
           WHERE id = ?
         `)
-        .run(
+        .get(
           req.params.id,
         );
 
 
-      if (
-        result.changes === 0
-      ) {
+      if (!activity) {
 
         return res
           .status(404)
@@ -1128,6 +1127,81 @@ app.delete(
           });
 
       }
+
+
+      const linkedSeriesSession = db
+        .prepare(`
+          SELECT
+            s.id,
+            s.series_id,
+            e.status AS series_status
+          FROM event_series_sessions s
+          JOIN event_series e
+            ON e.id = s.series_id
+          WHERE s.activity_id = ?
+        `)
+        .get(
+          req.params.id,
+        );
+
+
+      const remove = db.transaction(() => {
+
+        db
+          .prepare(`
+            DELETE FROM schedule_activities
+            WHERE id = ?
+          `)
+          .run(
+            req.params.id,
+          );
+
+
+        if (linkedSeriesSession) {
+
+          db
+            .prepare(`
+              DELETE FROM event_series_sessions
+              WHERE id = ?
+            `)
+            .run(
+              linkedSeriesSession.id,
+            );
+
+
+          const remaining = db
+            .prepare(`
+              SELECT COUNT(*) AS count
+              FROM event_series_sessions
+              WHERE series_id = ?
+            `)
+            .get(
+              linkedSeriesSession.series_id,
+            );
+
+
+          if (
+            linkedSeriesSession.series_status === "published" &&
+            remaining.count === 0
+          ) {
+
+            db
+              .prepare(`
+                DELETE FROM event_series
+                WHERE id = ?
+              `)
+              .run(
+                linkedSeriesSession.series_id,
+              );
+
+          }
+
+        }
+
+      });
+
+
+      remove();
 
 
       res
