@@ -1572,8 +1572,25 @@ app.post("/api/event-series", (req, res) => {
     if (!req.body.name) return res.status(400).json({ error: "Series name is required" });
     const id = req.body.id || `series-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const sessions = Array.isArray(req.body.sessions) ? req.body.sessions : [];
-    if (req.body.status === "published" && !sessions.some((session) => session.date)) {
-      return res.status(400).json({ error: "A published series needs at least one dated session" });
+    if (req.body.status === "published") {
+      const incompleteIndex = sessions.findIndex(
+        (session) => !session.date || !session.startTime || !session.endTime,
+      );
+      if (incompleteIndex !== -1 || sessions.length === 0) {
+        const sessionNumber = incompleteIndex === -1 ? 1 : incompleteIndex + 1;
+        return res.status(400).json({
+          error: `Session ${sessionNumber}: date, start time and end time are required before publishing`,
+        });
+      }
+
+      const invalidTimeIndex = sessions.findIndex(
+        (session) => session.endTime <= session.startTime,
+      );
+      if (invalidTimeIndex !== -1) {
+        return res.status(400).json({
+          error: `Session ${invalidTimeIndex + 1}: end time must be later than start time`,
+        });
+      }
     }
 
     const save = db.transaction(() => {
