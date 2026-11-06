@@ -1764,6 +1764,9 @@ export default function App() {
   };
 
   const deleteActivity = async (id, successMessage) => {
+    const deletedActivity = activities.find(
+      (activity) => String(activity.id) === String(id),
+    );
     try {
       await readApiResponse(
         await fetch(`${ACTIVITIES_API}/${id}`, { method: "DELETE" }),
@@ -1771,6 +1774,9 @@ export default function App() {
       setActivities((current) =>
         current.filter((activity) => String(activity.id) !== String(id)),
       );
+      if (deletedActivity?.type === "series") {
+        await loadEventSeries();
+      }
       setNotice(successMessage);
       return { ok: true };
     } catch (error) {
