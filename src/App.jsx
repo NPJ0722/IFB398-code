@@ -756,8 +756,11 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
   });
   const [scope,setScope]=useState('one');
   const [error,setError]=useState('');
+  const [publishError,setPublishError]=useState('');
+  const [publishing,setPublishing]=useState(false);
   const datedSessions=series.sessions.filter(session=>session.date);
   const activeSessions=datedSessions.filter(session=>session.status!=='cancelled');
+  const publishableSessions=activeSessions.filter(session=>session.startTime&&session.endTime);
 
   const openEdit=session=>{setEditing(session);setDraft({date:session.date,startTime:session.startTime,endTime:session.endTime});setScope('one');setError('')};
   const validate=()=>{if(!draft.date||!draft.startTime||!draft.endTime){setError('Date, start time and end time are required.');return false}if(draft.endTime<=draft.startTime){setError('End time must be later than start time.');return false}return true};
@@ -788,6 +791,29 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
     });
     if(result?.ok!==false)setEditingSeries(false);
   };
+  const publishSeries=async()=>{
+    setPublishError('');
+    if(!publishableSessions.length){
+      setPublishError('Add at least one session with a date, start time and end time before publishing.');
+      return;
+    }
+
+    setPublishing(true);
+    const result=await onUpdateSeries(series.id,{
+      name:series.name,
+      description:series.description||'',
+      instructor:series.instructor||'Claire',
+      location:series.location||'Studio A',
+      capacity:Number(series.capacity)||0,
+      price:Number(series.price)||0,
+      status:'published',
+    });
+    setPublishing(false);
+
+    if(result?.ok===false){
+      setPublishError(result.message||'Event series could not be published.');
+    }
+  };
   const deleteSeries=async()=>{
     const result=await onDeleteSeries(series.id);
     if(result?.ok!==false){
@@ -806,11 +832,13 @@ function SeriesDetails({go,series,onAddSession,onEditSession,onCancelSession,onR
           <span className={`series-status-chip ${series.status==='draft'?'draft':'published'}`}>{series.status==='draft'?'Draft':'Published'}</span>
         </div>
         <div className="series-overview-actions">
+          {series.status==='draft'&&<button className="primary-button" onClick={publishSeries} disabled={publishing}>{publishing?'Publishing…':'Publish Series'}</button>}
           <button className="secondary-button" onClick={openSeriesEdit}>Edit Series</button>
           <button className="danger-button" onClick={()=>setConfirmingDelete(true)}>Remove Series</button>
         </div>
       </div>
-      <p className="series-status-description">{series.status==='draft'?'This series is saved as a draft. Add dates when the schedule is ready.':'This event series is active and visible in the schedule.'}</p>
+      <p className="series-status-description">{series.status==='draft'?'This series is saved as a draft. Publish it when the schedule is ready.':'This event series is active and visible in the schedule.'}</p>
+      {publishError&&<p className="form-error" role="alert">{publishError}</p>}
       <div className="series-info-grid">
         <div className="series-info-item"><span>LOCATION</span><strong>{series.location||'Not set'}</strong></div>
         <div className="series-info-item"><span>CAPACITY</span><strong>{series.capacity||'—'}</strong></div>
@@ -1961,7 +1989,9 @@ export default function App() {
         current.map((series) => series.id === seriesId ? saved : series),
       );
       await refreshSchedule();
-      setNotice("Event series updated.");
+      setNotice(updates.status === "published"
+        ? "Event series published and added to the Schedule Dashboard."
+        : "Event series updated.");
       return { ok: true, saved };
     } catch (error) {
       console.error(error);
