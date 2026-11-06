@@ -1104,19 +1104,18 @@ app.delete(
 
     try {
 
-      const result = db
+      const activity = db
         .prepare(`
-          DELETE FROM schedule_activities
+          SELECT id
+          FROM schedule_activities
           WHERE id = ?
         `)
-        .run(
+        .get(
           req.params.id,
         );
 
 
-      if (
-        result.changes === 0
-      ) {
+      if (!activity) {
 
         return res
           .status(404)
@@ -1128,6 +1127,81 @@ app.delete(
           });
 
       }
+
+
+      const linkedSeriesSession = db
+        .prepare(`
+          SELECT
+            s.id,
+            s.series_id,
+            e.status AS series_status
+          FROM event_series_sessions s
+          JOIN event_series e
+            ON e.id = s.series_id
+          WHERE s.activity_id = ?
+        `)
+        .get(
+          req.params.id,
+        );
+
+
+      const remove = db.transaction(() => {
+
+        db
+          .prepare(`
+            DELETE FROM schedule_activities
+            WHERE id = ?
+          `)
+          .run(
+            req.params.id,
+          );
+
+
+        if (linkedSeriesSession) {
+
+          db
+            .prepare(`
+              DELETE FROM event_series_sessions
+              WHERE id = ?
+            `)
+            .run(
+              linkedSeriesSession.id,
+            );
+
+
+          const remaining = db
+            .prepare(`
+              SELECT COUNT(*) AS count
+              FROM event_series_sessions
+              WHERE series_id = ?
+            `)
+            .get(
+              linkedSeriesSession.series_id,
+            );
+
+
+          if (
+            linkedSeriesSession.series_status === "published" &&
+            remaining.count === 0
+          ) {
+
+            db
+              .prepare(`
+                DELETE FROM event_series
+                WHERE id = ?
+              `)
+              .run(
+                linkedSeriesSession.series_id,
+              );
+
+          }
+
+        }
+
+      });
+
+
+      remove();
 
 
       res
@@ -1572,8 +1646,25 @@ app.post("/api/event-series", (req, res) => {
     if (!req.body.name) return res.status(400).json({ error: "Series name is required" });
     const id = req.body.id || `series-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const sessions = Array.isArray(req.body.sessions) ? req.body.sessions : [];
-    if (req.body.status === "published" && !sessions.some((session) => session.date)) {
-      return res.status(400).json({ error: "A published series needs at least one dated session" });
+    if (req.body.status === "published") {
+      const incompleteIndex = sessions.findIndex(
+        (session) => !session.date || !session.startTime || !session.endTime,
+      );
+      if (incompleteIndex !== -1 || sessions.length === 0) {
+        const sessionNumber = incompleteIndex === -1 ? 1 : incompleteIndex + 1;
+        return res.status(400).json({
+          error: `Session ${sessionNumber}: date, start time and end time are required before publishing`,
+        });
+      }
+
+      const invalidTimeIndex = sessions.findIndex(
+        (session) => session.endTime <= session.startTime,
+      );
+      if (invalidTimeIndex !== -1) {
+        return res.status(400).json({
+          error: `Session ${invalidTimeIndex + 1}: end time must be later than start time`,
+        });
+      }
     }
 
     const save = db.transaction(() => {
@@ -1618,11 +1709,33 @@ app.put("/api/event-series/:id", (req, res) => {
       return res.status(400).json({ error: "Series name is required" });
     }
 
+    const desiredStatus = req.body.status === "published" ? "published" : existing.status;
+    if (desiredStatus === "published" && existing.status !== "published") {
+      const completeSessionCount = db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM event_series_sessions
+        WHERE series_id = ?
+          AND session_date IS NOT NULL
+          AND session_date <> ''
+          AND start_time IS NOT NULL
+          AND start_time <> ''
+          AND end_time IS NOT NULL
+          AND end_time <> ''
+          AND status <> 'cancelled'
+      `).get(req.params.id).count;
+
+      if (!completeSessionCount) {
+        return res.status(400).json({
+          error: "Add at least one complete session before publishing",
+        });
+      }
+    }
+
     const update = db.transaction(() => {
       db.prepare(`
         UPDATE event_series
         SET name = ?, description = ?, instructor = ?, location = ?, capacity = ?, price = ?,
-            updated_at = CURRENT_TIMESTAMP
+            status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
         String(req.body.name).trim(),
@@ -1631,6 +1744,7 @@ app.put("/api/event-series/:id", (req, res) => {
         req.body.location || null,
         Number(req.body.capacity) || 0,
         Number(req.body.price) || 0,
+        desiredStatus,
         req.params.id,
       );
 
@@ -1652,6 +1766,9 @@ app.put("/api/event-series/:id", (req, res) => {
       });
     });
     update();
+    if (desiredStatus === "published") {
+      syncAllPublishedSeriesSessionsToSchedule();
+    }
 
     res.json(seriesFromRow(db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.id)));
   } catch (error) {
