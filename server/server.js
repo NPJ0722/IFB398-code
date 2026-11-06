@@ -1618,11 +1618,33 @@ app.put("/api/event-series/:id", (req, res) => {
       return res.status(400).json({ error: "Series name is required" });
     }
 
+    const desiredStatus = req.body.status === "published" ? "published" : existing.status;
+    if (desiredStatus === "published" && existing.status !== "published") {
+      const completeSessionCount = db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM event_series_sessions
+        WHERE series_id = ?
+          AND session_date IS NOT NULL
+          AND session_date <> ''
+          AND start_time IS NOT NULL
+          AND start_time <> ''
+          AND end_time IS NOT NULL
+          AND end_time <> ''
+          AND status <> 'cancelled'
+      `).get(req.params.id).count;
+
+      if (!completeSessionCount) {
+        return res.status(400).json({
+          error: "Add at least one complete session before publishing",
+        });
+      }
+    }
+
     const update = db.transaction(() => {
       db.prepare(`
         UPDATE event_series
         SET name = ?, description = ?, instructor = ?, location = ?, capacity = ?, price = ?,
-            updated_at = CURRENT_TIMESTAMP
+            status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).run(
         String(req.body.name).trim(),
@@ -1631,6 +1653,7 @@ app.put("/api/event-series/:id", (req, res) => {
         req.body.location || null,
         Number(req.body.capacity) || 0,
         Number(req.body.price) || 0,
+        desiredStatus,
         req.params.id,
       );
 
@@ -1652,6 +1675,9 @@ app.put("/api/event-series/:id", (req, res) => {
       });
     });
     update();
+    if (desiredStatus === "published") {
+      syncAllPublishedSeriesSessionsToSchedule();
+    }
 
     res.json(seriesFromRow(db.prepare("SELECT * FROM event_series WHERE id = ?").get(req.params.id)));
   } catch (error) {
