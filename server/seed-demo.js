@@ -1,10 +1,15 @@
 import Database from "better-sqlite3";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const db = new Database(path.join(__dirname, "strong_steady.db"));
+const dataDirectory = process.env.DATA_DIR
+    ? path.resolve(process.env.DATA_DIR)
+    : __dirname;
+fs.mkdirSync(dataDirectory, { recursive: true });
+const db = new Database(path.join(dataDirectory, "strong_steady.db"));
 
 
 db.exec(`
