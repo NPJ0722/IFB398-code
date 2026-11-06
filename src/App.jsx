@@ -79,9 +79,10 @@ const formatRange = (start) => {
     ? `${MONTHS[start.getMonth()]} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`
     : `${MONTHS[start.getMonth()]} ${start.getDate()} – ${MONTHS[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
 };
-const ACTIVITIES_API = "http://localhost:3001/api/activities";
-const EVENT_SERIES_API = "http://localhost:3001/api/event-series";
-const CLIENTS_API = "http://localhost:3001/api/clients";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+const ACTIVITIES_API = `${API_BASE}/activities`;
+const EVENT_SERIES_API = `${API_BASE}/event-series`;
+const CLIENTS_API = `${API_BASE}/clients`;
 const APPOINTMENT_TYPES = [
   "Private Yoga",
   "Yoga Therapy",
